@@ -24,10 +24,19 @@ async def get_unified_prs(
 ):
     """Get unified PR views for multiple repositories."""
     try:
+        logger.info(f"Fetching unified PRs for {len(repo_urls)} repositories")
+        for i, url in enumerate(repo_urls):
+            logger.info(f"Repository {i+1}: {url}")
+        
         prs = pr_service.fetch_prs(repo_urls)
+        logger.info(f"Successfully fetched {len(prs)} PRs from repositories")
+        
         unified_prs = pr_service.unify_prs(prs)
+        logger.info(f"Created {len(unified_prs)} unified PR views")
+        
         return unified_prs
     except Exception as e:
+        logger.error(f"Error in get_unified_prs: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{repo_url:path}", response_model=List[PR])
@@ -77,4 +86,4 @@ async def approve_unified_prs(
         return {"message": f"Approved PRs for task {task_name}"}
     except Exception as e:
         logger.error(f"Error in approve_unified_prs: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))

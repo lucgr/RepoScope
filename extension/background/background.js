@@ -16,6 +16,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
         return true; // Required for async response
     }
+    
+    // Handle proxy fetch requests from content scripts
+    if (request.type === 'PROXY_FETCH') {
+        console.log('Received PROXY_FETCH request:', request);
+        
+        (async () => {
+            try {
+                // Execute the fetch request from the background script
+                const response = await fetch(request.url, request.options || {});
+                
+                // Convert response to JSON
+                const data = await response.json();
+                
+                // Send back the response
+                sendResponse({
+                    success: true,
+                    data: data,
+                    status: response.status
+                });
+            } catch (error) {
+                console.error('Error in proxy fetch:', error);
+                sendResponse({
+                    success: false,
+                    error: error.message
+                });
+            }
+        })();
+        
+        return true; // Required for async response
+    }
 });
 
 // Handle GitLab token updates
@@ -35,4 +65,4 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
             });
         });
     }
-}); 
+});

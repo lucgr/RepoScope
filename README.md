@@ -128,14 +128,6 @@ A browser extension that unifies Pull Request views across multiple GitLab repos
 - **Approval Failed**: Verify you have permission to approve PRs in the repositories
 - **Inconsistent Approval Status**: If approval status differs between popup and in-browser view, refresh the page or reopen the popup
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
 ## License
 
 MIT License - See LICENSE file for details

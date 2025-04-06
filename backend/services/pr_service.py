@@ -41,37 +41,60 @@ class PRService:
             raise ValueError(f"Repository not found: {repo_url}")
 
     def fetch_prs(self, repo_urls: List[str]) -> List[PR]:
-        """Fetch PRs from multiple GitLab repositories."""
+        """Fetch PRs from multiple GitLab repositories with improved error handling."""
         all_prs = []
         
         for repo_url in repo_urls:
             try:
                 logger.info(f"Fetching PRs for repository: {repo_url}")
-                project = self.get_project_from_url(repo_url)
-                merge_requests = project.mergerequests.list(state='opened', get_all=True)
                 
-                for mr in merge_requests:
-                    task_name = self.extract_task_name(mr.source_branch)
+                # Get project with timeout
+                project = self.get_project_from_url(repo_url)
+                
+                try:
+                    # Set a timeout for the API request
+                    merge_requests = project.mergerequests.list(state='opened', get_all=True, timeout=30)
+                    logger.info(f"Found {len(merge_requests)} open merge requests")
                     
-                    pr = PR(
-                        id=mr.id,
-                        iid=mr.iid,
-                        title=mr.title,
-                        description=mr.description,
-                        source_branch=mr.source_branch,
-                        target_branch=mr.target_branch,
-                        state=mr.state,
-                        created_at=mr.created_at,
-                        updated_at=mr.updated_at,
-                        web_url=mr.web_url,
-                        repository_name=project.name,
-                        repository_url=project.web_url,
-                        author=mr.author,
-                        assignees=mr.assignees,
-                        labels=mr.labels,
-                        task_name=task_name
-                    )
-                    all_prs.append(pr)
+                    for mr in merge_requests:
+                        task_name = self.extract_task_name(mr.source_branch)
+                        
+                        # Log detailed info about the MR
+                        logger.debug(f"Processing MR: {mr.iid} - {mr.title} - Branch: {mr.source_branch}")
+                        
+                        pr = PR(
+                            id=mr.id,
+                            iid=mr.iid,
+                            title=mr.title,
+                            description=mr.description,
+                            source_branch=mr.source_branch,
+                            target_branch=mr.target_branch,
+                            state=mr.state,
+                            created_at=mr.created_at,
+                            updated_at=mr.updated_at,
+                            web_url=mr.web_url,
+                            repository_name=project.name,
+                            repository_url=project.web_url,
+                            author=mr.author,
+                            assignees=mr.assignees,
+                            labels=mr.labels,
+                            task_name=task_name
+                        )
+                        all_prs.append(pr)
+                except gitlab.exceptions.GitlabAuthenticationError as e:
+                    logger.error(f"Authentication error fetching MRs for {repo_url}: {str(e)}")
+                    raise ValueError(f"GitLab authentication failed - check your token")
+                except gitlab.exceptions.GitlabListError as e:
+                    if hasattr(e, 'response_code') and e.response_code == 403:
+                        logger.error(f"Permission denied (403) listing MRs for {repo_url}")
+                        raise ValueError(f"Permission denied listing merge requests for {repo_url}. Check token permissions.")
+                    else:
+                        logger.error(f"Error listing MRs for {repo_url}: {str(e)}")
+                        raise ValueError(f"Error listing merge requests: {str(e)}")
+                except Exception as e:
+                    logger.error(f"Unexpected error fetching MRs for {repo_url}: {str(e)}")
+                    raise
+                    
             except Exception as e:
                 logger.error(f"Error fetching PRs for repository {repo_url}: {str(e)}")
                 continue
@@ -87,6 +110,7 @@ class PRService:
             if pr.task_name:
                 if pr.task_name not in task_groups:
                     task_groups[pr.task_name] = []
+                task_groups[pr.task_name].append(pr)
                 task_groups[pr.task_name].append(pr)
         
         # Create unified PR views
@@ -110,4 +134,27 @@ class PRService:
                 unified_prs.append(unified_pr)
         
         logger.info(f"Created {len(unified_prs)} unified PR views")
-        return unified_prs 
+        return unified_prs
+        
+        # Create unified PR views
+        unified_prs = []
+        for task_name, grouped_prs in task_groups.items():
+            if len(grouped_prs) > 1:  # Only create unified views for tasks with multiple PRs
+                # Determine overall status
+                status = 'open'
+                if all(pr.state == 'merged' for pr in grouped_prs):
+                    status = 'merged'
+                elif all(pr.state == 'closed' for pr in grouped_prs):
+                    status = 'closed'
+                
+                unified_pr = UnifiedPR(
+                    task_name=task_name,
+                    prs=grouped_prs,
+                    total_changes=0,  # We don't have this information yet
+                    total_comments=0,  # We don't have this information yet
+                    status=status
+                )
+                unified_prs.append(unified_pr)
+        
+        logger.info(f"Created {len(unified_prs)} unified PR views")
+        return unified_prs

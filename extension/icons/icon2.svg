@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+    <rect width="128" height="128" rx="20" fill="#2ecc71"/>
+    <g transform="translate(24, 24)">
+        <path d="M40 20 L40 60 L20 40 Z" fill="white"/>
+        <path d="M40 20 L40 60 L60 40 Z" fill="white"/>
+        <path d="M40 60 L20 40 L60 40 Z" fill="white"/>
+    </g>
+</svg> 

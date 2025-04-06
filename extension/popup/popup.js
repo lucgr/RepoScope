@@ -305,6 +305,9 @@ document.addEventListener('DOMContentLoaded', () => {
             repoCount: repoUrls ? repoUrls.split('\n').filter(url => url.trim()).length : 0
         });
         
+        // Clear previous results
+        document.getElementById('unified-prs-list').innerHTML = '<div class="loading">Loading PRs...</div>';
+        
         if (!backendUrl || !repoUrls || !gitlabToken) {
             console.error('Missing required settings:', { backendUrl, repoUrls, gitlabToken });
             document.getElementById('unified-prs-list').innerHTML = `
@@ -332,8 +335,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
-            const unifiedPRs = await response.json();
-            console.log('Received unified PRs:', unifiedPRs);
+            let unifiedPRs = await response.json();
+            console.log('Received unified PRs (raw):', unifiedPRs);
             
             if (!unifiedPRs || unifiedPRs.length === 0) {
                 document.getElementById('unified-prs-list').innerHTML = `
@@ -343,6 +346,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
                 return;
             }
+
+            // Deduplicate PRs within each task based on web_url
+            unifiedPRs = unifiedPRs.map(task => {
+                const uniquePRs = [];
+                const seenUrls = new Set();
+                
+                for (const pr of task.prs) {
+                    if (!seenUrls.has(pr.web_url)) {
+                        seenUrls.add(pr.web_url);
+                        uniquePRs.push(pr);
+                    } else {
+                        console.log(`Removed duplicate PR: ${pr.web_url}`);
+                    }
+                }
+                
+                return {
+                    ...task,
+                    prs: uniquePRs
+                };
+            });
+            
+            console.log('Deduplicated unified PRs:', unifiedPRs);
 
             // Check approval status for each PR in each task
             const tasksWithApproval = await Promise.all(unifiedPRs.map(async (task) => {
@@ -458,11 +483,17 @@ document.addEventListener('DOMContentLoaded', () => {
                                 url: pr.web_url,
                                 isApproved: pr.isApproved,
                                 repository: pr.repository_name,
-                                id: pr.iid
+                                id: pr.iid,
+                                title: pr.title
                             });
                             return `
                                 <div class="pr-item ${pr.isApproved ? 'approved' : ''}" data-url="${pr.web_url}">
-                                    <a href="${pr.web_url}" target="_blank">${pr.repository_name} #${pr.iid}</a>
+                                    <a href="${pr.web_url}" target="_blank" title="${pr.title || 'No title'}">
+                                        <div class="pr-item-content">
+                                            <span class="pr-title">${pr.title || 'No title'}</span>
+                                            <span class="pr-repo-info">${pr.repository_name} #${pr.iid}</span>
+                                        </div>
+                                    </a>
                                     ${pr.isApproved ? 
                                         '<span class="approval-status"><i class="checkmark">&#10003;</i> Approved</span>' : 
                                         '<span class="approval-status pending">Not approved</span>'
@@ -561,4 +592,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial load of unified PRs
     loadUnifiedPRs();
-}); 
+});

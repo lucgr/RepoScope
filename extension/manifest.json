@@ -2,28 +2,22 @@
   "manifest_version": 3,
   "name": "Unified PR Viewer",
   "version": "1.0",
-  "description": "View and manage related PRs across multiple repositories",
+  "description": "View and manage related Pull Requests across repositories",
   "permissions": [
     "storage",
-    "activeTab",
-    "scripting"
+    "activeTab"
   ],
   "host_permissions": [
-    "*://*.gitlab.com/*"
+    "https://gitlab.com/*"
   ],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    }
+    "default_icon": "icons/icon.svg"
   },
   "content_scripts": [
     {
-      "matches": ["*://*.gitlab.com/*/-/merge_requests/*"],
-      "js": ["content/content.js"],
-      "css": ["content/content.css"]
+      "matches": ["https://gitlab.com/*"],
+      "js": ["content/content.js"]
     }
   ],
   "background": {
@@ -34,4 +28,4 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   }
-} 
+}
