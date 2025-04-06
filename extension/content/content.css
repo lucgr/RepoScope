@@ -92,4 +92,31 @@
 .status.closed {
     background: #ffebee;
     color: #c62828;
+}
+
+.status.success {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.status.error {
+    background: #ffebee;
+    color: #c62828;
+}
+
+.unified-pr-message {
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+    font-weight: 500;
+}
+
+.unified-pr-message.success {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.unified-pr-message.error {
+    background: #ffebee;
+    color: #c62828;
 } 

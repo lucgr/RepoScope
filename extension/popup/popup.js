@@ -1,10 +1,15 @@
 document.addEventListener('DOMContentLoaded', () => {
     // Load saved settings
-    chrome.storage.sync.get(['backendUrl', 'gitlabToken', 'repoUrls'], (data) => {
+    chrome.storage.sync.get(['backendUrl', 'gitlabToken', 'repoUrls', 'username'], (data) => {
         console.log('Loaded settings:', data);
         document.getElementById('backend-url').value = data.backendUrl || '';
         document.getElementById('gitlab-token').value = data.gitlabToken || '';
         document.getElementById('repo-urls').value = data.repoUrls || '';
+        
+        // If we have all required settings, load unified PRs
+        if (data.backendUrl && data.gitlabToken && data.repoUrls) {
+            loadUnifiedPRs();
+        }
     });
 
     // Save settings
@@ -28,12 +33,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load unified PRs
     async function loadUnifiedPRs() {
-        const { backendUrl, repoUrls } = await chrome.storage.sync.get(['backendUrl', 'repoUrls']);
+        const { backendUrl, repoUrls, gitlabToken } = await chrome.storage.sync.get(['backendUrl', 'repoUrls', 'gitlabToken']);
         
-        console.log('Loading unified PRs with:', { backendUrl, repoUrls });
+        console.log('Loading unified PRs with:', { 
+            hasBackendUrl: !!backendUrl,
+            hasRepoUrls: !!repoUrls,
+            hasGitlabToken: !!gitlabToken,
+            repoCount: repoUrls ? repoUrls.split('\n').filter(url => url.trim()).length : 0
+        });
         
-        if (!backendUrl || !repoUrls) {
-            console.error('Missing required settings:', { backendUrl, repoUrls });
+        if (!backendUrl || !repoUrls || !gitlabToken) {
+            console.error('Missing required settings:', { backendUrl, repoUrls, gitlabToken });
+            document.getElementById('unified-prs-list').innerHTML = `
+                <div class="error">
+                    Please configure all settings (Backend URL, GitLab Token, and Repository URLs) to view unified PRs.
+                </div>
+            `;
             return;
         }
 
@@ -43,66 +58,129 @@ document.addEventListener('DOMContentLoaded', () => {
                 .filter(url => url.trim())
                 .map(url => encodeURIComponent(url));
             
-            console.log('Processed URLs:', urls);
-            
             // Join URLs with '&repo_urls=' to create the query string
             const queryString = urls.map(url => `repo_urls=${url}`).join('&');
             const apiUrl = `${backendUrl}/api/prs/unified?${queryString}`;
             
-            console.log('Making API request to:', apiUrl);
+            console.log('Fetching unified PRs from:', apiUrl);
             
             const response = await fetch(apiUrl);
-            console.log('API response status:', response.status);
-            
             if (!response.ok) {
-                throw new Error(`API request failed with status ${response.status}`);
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
             
             const unifiedPRs = await response.json();
-            console.log('Received PRs:', unifiedPRs);
+            console.log('Received unified PRs:', unifiedPRs);
             
-            const prsList = document.getElementById('unified-prs-list');
-            prsList.innerHTML = '';
-
-            if (unifiedPRs.length === 0) {
-                prsList.innerHTML = '<p class="no-prs">No related PRs found</p>';
+            if (!unifiedPRs || unifiedPRs.length === 0) {
+                document.getElementById('unified-prs-list').innerHTML = `
+                    <div class="no-prs">
+                        No related PRs found.
+                    </div>
+                `;
                 return;
             }
 
-            unifiedPRs.forEach(pr => {
-                const prCard = document.createElement('div');
-                prCard.className = 'pr-card';
-                
-                prCard.innerHTML = `
-                    <h3>${pr.task_name}</h3>
-                    <span class="status ${pr.status}">${pr.status}</span>
-                    <div class="pr-links">
-                        ${pr.prs.map(p => `
-                            <a href="${p.web_url}" target="_blank" class="pr-link">
-                                ${p.repository_name} #${p.iid}
-                            </a>
-                        `).join('')}
-                    </div>
-                    <div class="pr-stats">
-                        <span>Changes: ${pr.total_changes}</span>
-                        <span>Comments: ${pr.total_comments}</span>
-                    </div>
-                    <button class="approve-btn" data-task-name="${pr.task_name}">
-                        Approve All
-                    </button>
-                `;
+            // Check approval status for each PR
+            const prsWithApproval = await Promise.all(unifiedPRs.map(async (task) => {
+                const prs = await Promise.all(task.prs.map(async (pr) => {
+                    const approvalStatus = await checkPRApprovalStatus(pr.web_url);
+                    return { ...pr, isApproved: approvalStatus };
+                }));
+                const allApproved = prs.every(pr => pr.isApproved);
+                return { ...task, prs, allApproved };
+            }));
 
-                // Add click event listener to the button
-                const approveBtn = prCard.querySelector('.approve-btn');
-                approveBtn.addEventListener('click', () => approvePRs(pr.task_name));
-
-                prsList.appendChild(prCard);
-            });
+            // Update the UI
+            updateUnifiedPRsUI(prsWithApproval);
         } catch (error) {
             console.error('Error loading unified PRs:', error);
-            const prsList = document.getElementById('unified-prs-list');
-            prsList.innerHTML = `<p class="error">Error loading PRs: ${error.message}</p>`;
+            document.getElementById('unified-prs-list').innerHTML = `
+                <div class="error">
+                    Error loading PRs: ${error.message}
+                </div>
+            `;
         }
+    }
+
+    async function checkPRApprovalStatus(prUrl) {
+        try {
+            // Extract project and MR ID from URL
+            const match = prUrl.match(/gitlab\.com\/([^/]+)\/-\/merge_requests\/(\d+)/);
+            if (!match) return false;
+
+            const [_, projectPath, mrId] = match;
+            
+            // Get GitLab token from storage
+            const { gitlabToken, username } = await chrome.storage.sync.get(['gitlabToken', 'username']);
+            if (!gitlabToken) {
+                console.error('GitLab token not found');
+                return false;
+            }
+
+            // Fetch approval status from GitLab API
+            const response = await fetch(`https://gitlab.com/api/v4/projects/${encodeURIComponent(projectPath)}/merge_requests/${mrId}/approvals`, {
+                headers: {
+                    'Authorization': `Bearer ${gitlabToken}`
+                }
+            });
+
+            if (!response.ok) {
+                console.error('Failed to fetch approval status:', response.status);
+                return false;
+            }
+
+            const data = await response.json();
+            console.log('Approval status response:', data);
+            
+            // Check if the current user has approved
+            if (username && data.approved_by) {
+                const hasApproved = data.approved_by.some(approver => approver.user.username === username);
+                console.log('User approval status:', { username, hasApproved });
+                return hasApproved;
+            }
+            
+            return data.approved || false;
+        } catch (error) {
+            console.error('Error checking PR approval status:', error);
+            return false;
+        }
+    }
+
+    function updateUnifiedPRsUI(unifiedPRs) {
+        const container = document.getElementById('unified-prs-list');
+        if (!container) {
+            console.error('Could not find unified PRs container');
+            return;
+        }
+
+        container.innerHTML = unifiedPRs.map(task => `
+            <div class="task-group ${task.allApproved ? 'all-approved' : ''}">
+                <h3>${task.task_name}</h3>
+                ${task.allApproved ? '<div class="status approved">All Approved</div>' : ''}
+                <div class="pr-list">
+                    ${task.prs.map(pr => `
+                        <div class="pr-item ${pr.isApproved ? 'approved' : ''}">
+                            <a href="${pr.web_url}" target="_blank">${pr.repository_name} #${pr.iid}</a>
+                            ${pr.isApproved ? '<span class="approval-status">✓ Approved</span>' : ''}
+                        </div>
+                    `).join('')}
+                </div>
+                ${!task.allApproved ? `
+                    <button class="approve-all-btn" data-task-name="${task.task_name}">
+                        Approve All
+                    </button>
+                ` : ''}
+            </div>
+        `).join('');
+
+        // Add event listeners to approve buttons
+        document.querySelectorAll('.approve-all-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                const taskName = button.dataset.taskName;
+                approveAllPRs(taskName);
+            });
+        });
     }
 
     // Define approvePRs function
