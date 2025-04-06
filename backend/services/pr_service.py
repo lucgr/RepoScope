@@ -23,7 +23,7 @@ class PRService:
             if match:
                 return match.group(2) if len(match.groups()) > 1 else match.group(1)
         
-        logger.debug(f"Could not extract task name from branch '{branch_name}' using patterns: {patterns}")
+        logger.debug(f"Could not extract task name from branch '{branch_name}'")
         return None
 
     def get_project_from_url(self, repo_url: str):
@@ -34,7 +34,6 @@ class PRService:
             
             # Extract the path from the URL
             path = repo_url.split(self.gl.url)[1].lstrip('/')
-            logger.info(f"Getting project for path: {path}")
             
             return self.gl.projects.get(path)
         except Exception as e:
@@ -52,9 +51,7 @@ class PRService:
                 merge_requests = project.mergerequests.list(state='opened', get_all=True)
                 
                 for mr in merge_requests:
-                    logger.info(f"Processing MR {mr.iid} with branch {mr.source_branch}")
                     task_name = self.extract_task_name(mr.source_branch)
-                    logger.info(f"Extracted task name: {task_name}")
                     
                     pr = PR(
                         id=mr.id,
@@ -83,13 +80,11 @@ class PRService:
 
     def unify_prs(self, prs: List[PR]) -> List[UnifiedPR]:
         """Group PRs by task name and create unified views."""
-        logger.info(f"Unifying {len(prs)} PRs")
         task_groups: Dict[str, List[PR]] = {}
         
         # Group PRs by task name
         for pr in prs:
             if pr.task_name:
-                logger.info(f"Grouping PR {pr.iid} with task name: {pr.task_name}")
                 if pr.task_name not in task_groups:
                     task_groups[pr.task_name] = []
                 task_groups[pr.task_name].append(pr)
@@ -98,8 +93,6 @@ class PRService:
         unified_prs = []
         for task_name, grouped_prs in task_groups.items():
             if len(grouped_prs) > 1:  # Only create unified views for tasks with multiple PRs
-                logger.info(f"Creating unified view for task {task_name} with {len(grouped_prs)} PRs")
-                
                 # Determine overall status
                 status = 'open'
                 if all(pr.state == 'merged' for pr in grouped_prs):

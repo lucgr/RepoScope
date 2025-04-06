@@ -4,14 +4,14 @@ chrome.runtime.onInstalled.addListener(() => {
     chrome.storage.sync.set({
         backendUrl: 'http://localhost:8000',
         gitlabToken: '',
-        projectIds: ''
+        repoUrls: ''
     });
 });
 
 // Listen for messages from content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'GET_SETTINGS') {
-        chrome.storage.sync.get(['backendUrl', 'gitlabToken', 'projectIds'], (data) => {
+        chrome.storage.sync.get(['backendUrl', 'gitlabToken', 'repoUrls'], (data) => {
             sendResponse(data);
         });
         return true; // Required for async response
