@@ -19,9 +19,28 @@
                 <input type="password" id="gitlab-token" placeholder="Your GitLab token">
             </div>
             <div class="form-group">
-                <label for="repo-urls">Repository URLs (one per line):</label>
-                <textarea id="repo-urls" placeholder="https://gitlab.com/username/repo1&#10;https://gitlab.com/username/repo2" rows="4"></textarea>
-                <div class="help-text">Enter the full GitLab repository URLs, one per line</div>
+                <label>Repositories:</label>
+                <div class="repo-list-container">
+                    <table id="repo-list" class="repo-table">
+                        <thead>
+                            <tr>
+                                <th>Repository URL</th>
+                                <th width="40px">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Repository list will be populated here -->
+                        </tbody>
+                    </table>
+                    <div class="empty-state" id="empty-repos">
+                        No repositories added yet
+                    </div>
+                </div>
+                <div class="repo-form">
+                    <input type="text" id="new-repo-url" placeholder="https://gitlab.com/username/repo">
+                    <button id="add-repo-btn">Add Repository</button>
+                </div>
+                <div class="help-text">Enter the full GitLab repository URL</div>
             </div>
             <button id="save-settings">Save Settings</button>
         </div>

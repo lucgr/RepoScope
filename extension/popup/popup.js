@@ -4,7 +4,9 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Loaded settings:', data);
         document.getElementById('backend-url').value = data.backendUrl || '';
         document.getElementById('gitlab-token').value = data.gitlabToken || '';
-        document.getElementById('repo-urls').value = data.repoUrls || '';
+        
+        // Load saved repos
+        loadRepositoryList(data.repoUrls || '');
         
         // Validate GitLab token if it exists
         if (data.gitlabToken) {
@@ -38,11 +40,120 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Repository management
+    function loadRepositoryList(repoUrlsString) {
+        const repoList = document.getElementById('repo-list').querySelector('tbody');
+        const emptyState = document.getElementById('empty-repos');
+        
+        // Clear existing items
+        repoList.innerHTML = '';
+        
+        // Parse repo URLs
+        const repoUrls = repoUrlsString.split('\n')
+            .filter(url => url.trim())
+            .map(url => url.trim());
+        
+        // Show/hide empty state
+        if (repoUrls.length === 0) {
+            emptyState.style.display = 'block';
+        } else {
+            emptyState.style.display = 'none';
+            
+            // Add each repo to the table
+            repoUrls.forEach(url => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${url}</td>
+                    <td>
+                        <button class="delete-repo-btn" data-url="${url}">x</button>
+                    </td>
+                `;
+                repoList.appendChild(row);
+            });
+            
+            // Add delete event listeners
+            document.querySelectorAll('.delete-repo-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    removeRepository(this.getAttribute('data-url'));
+                });
+            });
+        }
+    }
+    
+    function getRepositoryUrls() {
+        const repoUrls = [];
+        const rows = document.querySelectorAll('#repo-list tbody tr');
+        
+        rows.forEach(row => {
+            const url = row.cells[0].textContent.trim();
+            if (url) {
+                repoUrls.push(url);
+            }
+        });
+        
+        return repoUrls.join('\n');
+    }
+    
+    function addRepository(url) {
+        // Validate URL format (simple validation)
+        if (!url.startsWith('https://gitlab.com/')) {
+            alert('Please enter a valid GitLab repository URL (https://gitlab.com/...)');
+            return false;
+        }
+        
+        // Get existing repos
+        const repoUrlsString = getRepositoryUrls();
+        const repoUrls = repoUrlsString.split('\n').filter(u => u.trim());
+        
+        // Check if URL already exists
+        if (repoUrls.includes(url)) {
+            alert('This repository is already in the list');
+            return false;
+        }
+        
+        // Add to list and reload
+        repoUrls.push(url);
+        loadRepositoryList(repoUrls.join('\n'));
+        return true;
+    }
+    
+    function removeRepository(url) {
+        // Get existing repos
+        const repoUrlsString = getRepositoryUrls();
+        const repoUrls = repoUrlsString.split('\n').filter(u => u.trim());
+        
+        // Remove the URL
+        const newRepoUrls = repoUrls.filter(u => u !== url);
+        loadRepositoryList(newRepoUrls.join('\n'));
+    }
+    
+    // Add repository button event
+    document.getElementById('add-repo-btn').addEventListener('click', () => {
+        const newRepoInput = document.getElementById('new-repo-url');
+        const url = newRepoInput.value.trim();
+        
+        if (url) {
+            if (addRepository(url)) {
+                // Clear input if successfully added
+                newRepoInput.value = '';
+            }
+        } else {
+            alert('Please enter a repository URL');
+        }
+    });
+    
+    // Allow pressing Enter in the input field to add a repo
+    document.getElementById('new-repo-url').addEventListener('keyup', (event) => {
+        if (event.key === 'Enter') {
+            document.getElementById('add-repo-btn').click();
+        }
+    });
+
     // Save settings
     document.getElementById('save-settings').addEventListener('click', () => {
         const backendUrl = document.getElementById('backend-url').value;
         const gitlabToken = document.getElementById('gitlab-token').value;
-        const repoUrls = document.getElementById('repo-urls').value;
+        const repoUrls = getRepositoryUrls();
 
         console.log('Saving settings:', { backendUrl, gitlabToken, repoUrls });
 

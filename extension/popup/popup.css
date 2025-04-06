@@ -312,4 +312,92 @@ button:hover {
     background-color: #fffbe6;
     color: #b59f00;
     border: 1px solid #f3e9b2;
+}
+
+.repo-list-container {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    background: white;
+}
+
+.repo-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.repo-table th {
+    background: #f5f5f5;
+    text-align: left;
+    padding: 8px;
+    font-size: 13px;
+    color: #555;
+    border-bottom: 1px solid #ddd;
+}
+
+.repo-table td {
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+    font-size: 13px;
+}
+
+.repo-table tr:last-child td {
+    border-bottom: none;
+}
+
+.delete-repo-btn {
+    background: #f44336;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0;
+    text-align: center;
+    font-weight: bold;
+}
+
+.delete-repo-btn:hover {
+    background: #d32f2f;
+}
+
+.repo-form {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 5px;
+}
+
+.repo-form input {
+    flex-grow: 1;
+}
+
+.repo-form button {
+    white-space: nowrap;
+}
+
+.empty-state {
+    padding: 20px;
+    text-align: center;
+    color: #888;
+    font-style: italic;
+}
+
+textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    resize: vertical;
+}
+
+.help-text {
+    font-size: 12px;
+    color: #888;
+    margin-top: 5px;
 } 
