@@ -6,6 +6,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('gitlab-token').value = data.gitlabToken || '';
         document.getElementById('repo-urls').value = data.repoUrls || '';
         
+        // Validate GitLab token if it exists
+        if (data.gitlabToken) {
+            validateGitLabToken(data.gitlabToken);
+        }
+        
         // Extract username from GitLab token if not already stored
         if (data.gitlabToken && !data.username) {
             fetch('https://gitlab.com/api/v4/user', {
@@ -41,16 +46,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
         console.log('Saving settings:', { backendUrl, gitlabToken, repoUrls });
 
-        // When token changes, fetch and store username
+        // Add status indicator for token validation
+        const statusDiv = document.createElement('div');
+        statusDiv.id = 'token-validation-status';
+        statusDiv.className = 'validation-in-progress';
+        statusDiv.textContent = 'Validating GitLab token...';
+        
+        // Find or create status container
+        let statusContainer = document.getElementById('token-status-container');
+        if (!statusContainer) {
+            statusContainer = document.createElement('div');
+            statusContainer.id = 'token-status-container';
+            const tokenField = document.getElementById('gitlab-token');
+            tokenField.parentNode.insertBefore(statusContainer, tokenField.nextSibling);
+        }
+        
+        statusContainer.innerHTML = '';
+        statusContainer.appendChild(statusDiv);
+
+        // When token changes, validate it first before saving
         if (gitlabToken) {
             fetch('https://gitlab.com/api/v4/user', {
                 headers: {
                     'Authorization': `Bearer ${gitlabToken}`
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`GitLab API responded with status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(user => {
                 console.log('Got GitLab user:', user);
+                if (!user.username) {
+                    throw new Error('Invalid user data returned from GitLab');
+                }
+                
+                // Update status to success
+                statusDiv.className = 'validation-success';
+                statusDiv.textContent = `Valid token (authenticated as ${user.username})`;
+                
+                // Save all settings with username
                 chrome.storage.sync.set({
                     backendUrl,
                     gitlabToken,
@@ -62,18 +99,88 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             })
             .catch(error => {
-                console.error('Error fetching GitLab user:', error);
+                console.error('Error validating GitLab token:', error);
+                
+                // Update status to error
+                statusDiv.className = 'validation-error';
+                statusDiv.textContent = `Invalid GitLab token: ${error.message}`;
+                
+                // Don't save invalid token
                 chrome.storage.sync.set({
                     backendUrl,
-                    gitlabToken,
                     repoUrls
                 }, () => {
-                    console.log('Settings saved successfully without username');
-                    loadUnifiedPRs();
+                    console.log('Settings saved without GitLab token due to validation error');
                 });
+            });
+        } else {
+            // No token provided
+            statusDiv.className = 'validation-warning';
+            statusDiv.textContent = 'No GitLab token provided';
+            
+            chrome.storage.sync.set({
+                backendUrl,
+                gitlabToken: '',
+                repoUrls,
+                username: ''
+            }, () => {
+                console.log('Settings saved without GitLab token');
             });
         }
     });
+
+    // Function to validate GitLab token
+    async function validateGitLabToken(token) {
+        if (!token) return;
+        
+        // Create or get status container
+        let statusContainer = document.getElementById('token-status-container');
+        if (!statusContainer) {
+            statusContainer = document.createElement('div');
+            statusContainer.id = 'token-status-container';
+            const tokenField = document.getElementById('gitlab-token');
+            tokenField.parentNode.insertBefore(statusContainer, tokenField.nextSibling);
+        }
+        
+        // Create status div
+        const statusDiv = document.createElement('div');
+        statusDiv.id = 'token-validation-status';
+        statusDiv.className = 'validation-in-progress';
+        statusDiv.textContent = 'Validating GitLab token...';
+        statusContainer.innerHTML = '';
+        statusContainer.appendChild(statusDiv);
+        
+        try {
+            const response = await fetch('https://gitlab.com/api/v4/user', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`GitLab API responded with status: ${response.status}`);
+            }
+            
+            const user = await response.json();
+            if (!user.username) {
+                throw new Error('Invalid user data returned from GitLab');
+            }
+            
+            // Token is valid
+            statusDiv.className = 'validation-success';
+            statusDiv.textContent = `Valid token (authenticated as ${user.username})`;
+            
+            return true;
+        } catch (error) {
+            console.error('Error validating existing GitLab token:', error);
+            
+            // Token is invalid
+            statusDiv.className = 'validation-error';
+            statusDiv.textContent = `Invalid GitLab token: ${error.message}`;
+            
+            return false;
+        }
+    }
 
     // Load unified PRs
     async function loadUnifiedPRs() {

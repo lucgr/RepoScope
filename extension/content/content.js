@@ -586,9 +586,10 @@ const styles = `
 .unified-pr-view {
     margin: 16px 0;
     padding: 16px;
-    background: #f9f9f9;
-    border: 1px solid #e5e5e5;
-    border-radius: 8px;
+    background: var(--gray-10, #fafafa);
+    border: 1px solid var(--border-color, #e5e5e5);
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .unified-pr-header {
@@ -598,11 +599,12 @@ const styles = `
 .unified-pr-header h3 {
     margin: 0 0 8px 0;
     font-size: 16px;
-    color: #2e2e2e;
+    color: var(--gl-theme-accent, #1f75cb);
+    font-weight: 600;
 }
 
 .task-name {
-    color: #666;
+    color: var(--gl-text-secondary, #586069);
     font-size: 14px;
 }
 
@@ -617,17 +619,17 @@ const styles = `
     padding: 8px 12px;
     margin: 4px 0;
     border-radius: 4px;
-    background: white;
-    border: 1px solid #e5e5e5;
+    background: var(--white, white);
+    border: 1px solid var(--border-color, #e5e5e5);
 }
 
 .pr-item.approved {
-    background: #f3f9f4;
-    border-color: #97d3a0;
+    background: var(--green-50, #f0faf5);
+    border-color: var(--green-200, #cbe2d1);
 }
 
 .pr-item a {
-    color: #1068bf;
+    color: var(--blue-600, #1068bf);
     text-decoration: none;
     font-size: 14px;
     flex-grow: 1;
@@ -653,18 +655,18 @@ const styles = `
 }
 
 .approval-status.pending {
-    background: #f0f0f0;
-    color: #666;
+    background: var(--gray-50, #f0f0f0);
+    color: var(--gl-text-secondary, #666);
 }
 
 .pr-item .approval-status {
-    background: #f3f9f4;
-    color: #1aaa55;
-    border: 1px solid #97d3a0;
+    background: var(--green-50, #f0faf5);
+    color: var(--green-600, #1aaa55);
+    border: 1px solid var(--green-200, #cbe2d1);
 }
 
 .approve-all-btn {
-    background: #1aaa55;
+    background: var(--green-500, #1aaa55);
     color: white;
     border: none;
     border-radius: 4px;
@@ -676,7 +678,7 @@ const styles = `
 }
 
 .approve-all-btn:hover {
-    background: #168f48;
+    background: var(--green-600, #168f48);
 }
 
 .status {
@@ -688,9 +690,27 @@ const styles = `
 }
 
 .status.approved {
-    background: #f3f9f4;
-    color: #1aaa55;
-    border: 1px solid #97d3a0;
+    background: var(--green-50, #f0faf5);
+    color: var(--green-600, #1aaa55);
+    border: 1px solid var(--green-200, #cbe2d1);
+}
+
+.unified-pr-message {
+    padding: 10px;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+.unified-pr-message.success {
+    background: var(--green-50, #f0faf5);
+    color: var(--green-600, #1aaa55);
+    border: 1px solid var(--green-200, #cbe2d1);
+}
+
+.unified-pr-message.error {
+    background: var(--red-50, #fff0f0);
+    color: var(--red-600, #c92100);
+    border: 1px solid var(--red-200, #fcc);
 }
 `;
 

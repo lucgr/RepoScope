@@ -276,4 +276,40 @@ button:hover {
     background: #fff8e5;
     color: #b17810;
     border: 1px solid #fbe5b5;
+}
+
+#token-status-container {
+    margin: 5px 0;
+    font-size: 13px;
+}
+
+#token-validation-status {
+    padding: 6px 10px;
+    border-radius: 4px;
+    margin-top: 5px;
+    display: block;
+}
+
+.validation-in-progress {
+    background-color: #f0f8ff;
+    color: #0077cc;
+    border: 1px solid #b3d9ff;
+}
+
+.validation-success {
+    background-color: #f0faf5;
+    color: #1aaa55;
+    border: 1px solid #cbe2d1;
+}
+
+.validation-error {
+    background-color: #fff0f0;
+    color: #c92100;
+    border: 1px solid #fcc;
+}
+
+.validation-warning {
+    background-color: #fffbe6;
+    color: #b59f00;
+    border: 1px solid #f3e9b2;
 } 
