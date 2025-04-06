@@ -39,15 +39,23 @@ function extractTaskName(branchName) {
 
 async function addUnifiedPRView(taskName) {
     // Get settings from storage
-    const { backendUrl, projectIds } = await chrome.storage.sync.get(['backendUrl', 'projectIds']);
+    const { backendUrl, repoUrls } = await chrome.storage.sync.get(['backendUrl', 'repoUrls']);
     
-    if (!backendUrl || !projectIds) {
+    if (!backendUrl || !repoUrls) {
         return;
     }
 
     try {
+        // Convert newline-separated URLs to array and encode them
+        const urls = repoUrls.split('\n')
+            .filter(url => url.trim())
+            .map(url => encodeURIComponent(url));
+        
+        // Join URLs with '&repo_urls=' to create the query string
+        const queryString = urls.map(url => `repo_urls=${url}`).join('&');
+        
         // Fetch related PRs
-        const response = await fetch(`${backendUrl}/api/prs/unified?project_ids=${projectIds}`);
+        const response = await fetch(`${backendUrl}/api/prs/unified?${queryString}`);
         const unifiedPRs = await response.json();
         
         // Find PRs for the current task
@@ -106,13 +114,15 @@ function injectUnifiedView(view) {
 
 // Add approve all function to window
 window.approveAllPRs = async (taskName) => {
-    const { backendUrl, projectIds } = await chrome.storage.sync.get(['backendUrl', 'projectIds']);
+    const { backendUrl, repoUrls } = await chrome.storage.sync.get(['backendUrl', 'repoUrls']);
     
-    if (!backendUrl || !projectIds) {
+    if (!backendUrl || !repoUrls) {
         return;
     }
 
     try {
+        const urls = repoUrls.split('\n').filter(url => url.trim());
+        
         const response = await fetch(`${backendUrl}/api/prs/approve`, {
             method: 'POST',
             headers: {
@@ -120,7 +130,7 @@ window.approveAllPRs = async (taskName) => {
             },
             body: JSON.stringify({
                 task_name: taskName,
-                project_ids: projectIds.split(',').map(id => parseInt(id.trim()))
+                repo_urls: urls
             })
         });
 

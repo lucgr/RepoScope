@@ -1,12 +1,13 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-import os
-import gitlab
 from .api.pr_routes import router as pr_router
+import logging
 
-# Load environment variables
-load_dotenv()
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 app = FastAPI(title="Unified PR Viewer API")
 
@@ -17,16 +18,6 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-)
-
-# Initialize GitLab client
-gitlab_token = os.getenv("GITLAB_TOKEN")
-if not gitlab_token:
-    raise ValueError("GITLAB_TOKEN environment variable is not set")
-
-gl = gitlab.Gitlab(
-    url=os.getenv("GITLAB_URL", "https://gitlab.com"),
-    private_token=gitlab_token
 )
 
 # Include routers

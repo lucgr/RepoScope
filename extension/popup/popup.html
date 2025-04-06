@@ -19,8 +19,9 @@
                 <input type="password" id="gitlab-token" placeholder="Your GitLab token">
             </div>
             <div class="form-group">
-                <label for="project-ids">Project IDs (comma-separated):</label>
-                <input type="text" id="project-ids" placeholder="123,456,789">
+                <label for="repo-urls">Repository URLs (one per line):</label>
+                <textarea id="repo-urls" placeholder="https://gitlab.com/username/repo1&#10;https://gitlab.com/username/repo2" rows="4"></textarea>
+                <div class="help-text">Enter the full GitLab repository URLs, one per line</div>
             </div>
             <button id="save-settings">Save Settings</button>
         </div>

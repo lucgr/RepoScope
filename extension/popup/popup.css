@@ -121,4 +121,20 @@ button:hover {
 
 .pr-link:hover {
     background: #e0e0e0;
+}
+
+.success {
+    background: #e8f5e9;
+    color: #2e7d32;
+    padding: 10px;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+.error {
+    background: #ffebee;
+    color: #c62828;
+    padding: 10px;
+    border-radius: 4px;
+    margin: 10px 0;
 } 
