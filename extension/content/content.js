@@ -1,8 +1,8 @@
-console.log('%c Unified PR Viewer Extension Loaded ', 'background: #222; color: #bada55; font-size: 16px;');
+console.log('%c Unified PR Viewer Extension Loaded ', 'background: #222; color:rgb(82, 218, 172); font-size: 16px;');
 
 // Immediately check storage to verify settings
 chrome.storage.sync.get(['backendUrl', 'repoUrls'], (result) => {
-    console.log('%c Extension Settings ', 'background: #222; color: #bada55', {
+    console.log('%c Extension Settings ', 'background: #222; color:rgb(115, 245, 165)', {
         hasBackendUrl: !!result.backendUrl,
         hasRepoUrls: !!result.repoUrls,
         backendUrl: result.backendUrl ? result.backendUrl.substring(0, 10) + '...' : 'not set',
@@ -22,7 +22,6 @@ async function initializePRView() {
             console.log('Not on a merge request page, skipping injection');
             return;
         }
-        
         console.log('On a merge request page, proceeding with injection');
 
         // Get settings from storage
@@ -36,16 +35,12 @@ async function initializePRView() {
             });
             return;
         }
-        
         console.log('All required settings found, proceeding with branch detection');
 
         // Try multiple selectors for the branch name
         const branchSelectors = [
             '.ref-container',                      // Primary selector based on actual DOM
-            '.detail-page-description .ref-container', 
-            '.js-source-branch-copy',              // Copy button selector
-            '[data-clipboard-text]',               // Data attribute selector
-            '.js-source-branch',                   // Original selector
+            '.detail-page-description .ref-container', // Fallback for description area
             '.merge-request-details .ref-name',    // Additional selector
             '.merge-request-title-source'          // Title source element
         ];
@@ -56,9 +51,8 @@ async function initializePRView() {
 
         // If no branch name from URL, try DOM selectors
         if (!branchName) {
-            // Try each selector
+
             let branchElement = null;
-            
             for (const selector of branchSelectors) {
                 const elements = document.querySelectorAll(selector);
                 console.log(`Selector ${selector} found ${elements.length} elements`);
@@ -67,22 +61,15 @@ async function initializePRView() {
                     // Try to get branch name from different sources
                     const text = element.textContent?.trim();
                     const title = element.getAttribute('title');
-                    const clipboardText = element.getAttribute('data-clipboard-text');
                     
                     console.log(`Checking element:`, {
                         selector,
                         text,
                         title,
-                        clipboardText,
                         html: element.outerHTML
                     });
                     
-                    if (clipboardText) {
-                        branchElement = element;
-                        branchName = clipboardText;
-                        console.log('Found branch name from clipboard text:', branchName);
-                        break;
-                    } else if (title) {
+                    if (title) {
                         branchElement = element;
                         branchName = title;
                         console.log('Found branch name from title:', branchName);
@@ -97,40 +84,6 @@ async function initializePRView() {
                 
                 if (branchName) break;
             }
-
-            // If no element found, try to get from page data
-            if (!branchName) {
-                try {
-                    // GitLab stores data in a script tag with id="js-merge-request-data"
-                    const dataElement = document.getElementById('js-merge-request-data');
-                    if (dataElement) {
-                        const mrData = JSON.parse(dataElement.textContent);
-                        if (mrData && mrData.source_branch) {
-                            branchName = mrData.source_branch;
-                            console.log('Found branch name from JS data:', branchName);
-                        }
-                    } else {
-                        console.log('No js-merge-request-data element found');
-                    }
-                } catch (err) {
-                    console.error('Error extracting branch from JS data:', err);
-                }
-            }
-            
-            // As a fallback, try waiting for dynamic content
-            if (!branchName) {
-                try {
-                    console.log('No branch found, waiting for dynamic content...');
-                    // Wait for any of the selectors to appear
-                    const selectorString = branchSelectors.join(',');
-                    branchElement = await waitForElement(selectorString, 10000);
-                    branchName = branchElement.textContent?.trim();
-                    console.log('Found branch after waiting:', branchName);
-                } catch (error) {
-                    console.error('Timeout waiting for branch element:', error);
-                    return;
-                }
-            }
         }
 
         if (!branchName) {
@@ -138,16 +91,12 @@ async function initializePRView() {
             return;
         }
 
-        // Log the found branch name
-        console.log('Final branch name detected:', branchName);
-
         // Extract task name from branch name
         const taskName = extractTaskName(branchName);
         if (!taskName) {
             console.log('Could not extract task name from branch:', branchName);
             return;
         }
-        
         console.log('Extracted task name:', taskName);
 
         // Add unified PR view to the page
@@ -155,33 +104,6 @@ async function initializePRView() {
     } catch (error) {
         console.error('Error initializing PR view:', error);
     }
-}
-
-// Helper function to wait for an element to appear in the DOM
-function waitForElement(selector, timeout = 5000) {
-    return new Promise((resolve, reject) => {
-        if (document.querySelector(selector)) {
-            return resolve(document.querySelector(selector));
-        }
-
-        const timeoutId = setTimeout(() => {
-            observer.disconnect();
-            reject(new Error(`Timeout waiting for ${selector}`));
-        }, timeout);
-
-        const observer = new MutationObserver(mutations => {
-            if (document.querySelector(selector)) {
-                clearTimeout(timeoutId);
-                observer.disconnect();
-                resolve(document.querySelector(selector));
-            }
-        });
-
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-    });
 }
 
 // Watch for URL changes (for GitLab's SPA navigation)
@@ -203,9 +125,9 @@ if (document.readyState === 'loading') {
 
 function extractTaskName(branchName) {
     const patterns = [
-        /^(feature|bug|bugfix|hotfix|fix|chore|task)\/([A-Z]+-\d+)/i,  // JIRA-style with more prefixes
-        /^(feature|bug|bugfix|hotfix|fix|chore|task)\/(\d+)/i,         // Numeric with more prefixes
-        /^([A-Z]+-\d+)/                                                // Just ticket number
+        /^(feature|bug|bugfix|hotfix|fix|chore|task)\/([A-Z]+-\d+)/i, // JIRA-style with more prefixes
+        /^(feature|bug|bugfix|hotfix|fix|chore|task)\/(\d+)/i, // Numeric with more prefixes
+        /^([A-Z]+-\d+)/ // Just ticket number
     ];
     
     for (const pattern of patterns) {
@@ -214,7 +136,6 @@ function extractTaskName(branchName) {
             return match[2] || match[1];
         }
     }
-    
     return null;
 }
 
@@ -264,13 +185,11 @@ async function addUnifiedPRView(taskName) {
             .filter(url => url.trim())
             .map(url => encodeURIComponent(url));
         
-        // Join URLs with '&repo_urls=' to create the query string
+        // Join URLs with '&repo_urls=' to create the query string, use the proxy fetch instead of direct fetch
         const queryString = urls.map(url => `repo_urls=${url}`).join('&');
         const apiUrl = `${backendUrl}/api/prs/unified?${queryString}`;
         
         console.log('Fetching unified PRs using proxy from:', apiUrl);
-        
-        // Use the proxy fetch instead of direct fetch
         const unifiedPRs = await proxyFetch(apiUrl);
         console.log('Received unified PRs data:', unifiedPRs);
         
@@ -415,7 +334,6 @@ async function checkPRApprovalStatus(prUrl) {
                 });
                 return hasApproved;
             }
-            
             return false;
         } catch (error) {
             console.error('Error in proxy fetch for approval status:', error);
@@ -467,7 +385,7 @@ async function approveAllPRs(taskName) {
         }
         
         // Wait longer before reloading to allow GitLab API to update
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await new Promise(resolve => setTimeout(resolve, 4000));
         
         // Instead of reloading the page, update the view with new data
         const queryString = urls.map(url => `repo_urls=${encodeURIComponent(url)}`).join('&');
@@ -594,15 +512,12 @@ async function injectUnifiedView(view) {
     const injectionPoints = [
         '.merge-request-description',
         '.detail-page-description',
-        '[data-testid="merge-request-description"]',
         '.merge-request-details',
         '.merge-request-info',
-        '.mr-widget-content',
-        '.mr-widget-section',
         '.description',
-        '.issuable-details',                 // Added
-        '.detail-page-header',               // Added
-        '.merge-request'                     // Added
+        '.issuable-details',
+        '.detail-page-header',
+        '.merge-request'
     ];
     
     console.log('Attempting to inject unified view, searching for injection points...');
@@ -642,164 +557,16 @@ async function injectUnifiedView(view) {
     // Insert the unified view after the injection point
     console.log('Injecting unified view after:', injectionPoint);
     injectionPoint.parentNode.insertBefore(view, injectionPoint.nextSibling);
-    console.log('Unified view injected successfully');
 }
 
-// Add CSS styles for the unified PR view
-const styles = `
-.unified-pr-view {
-    margin: 16px 0;
-    padding: 16px;
-    background: var(--gray-10, #fafafa);
-    border: 1px solid var(--border-color, #e5e5e5);
-    border-radius: 4px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+// Ensure the CSS file is loaded
+function loadCSS(path) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.type = 'text/css';
+    link.href = chrome.runtime.getURL(path);
+    document.head.appendChild(link);
 }
 
-.unified-pr-header {
-    margin-bottom: 16px;
-}
-
-.unified-pr-header h3 {
-    margin: 0 0 8px 0;
-    font-size: 16px;
-    color: var(--gl-theme-accent, #1f75cb);
-    font-weight: 600;
-}
-
-.task-name {
-    color: var(--gl-text-secondary, #586069);
-    font-size: 14px;
-}
-
-.unified-pr-list {
-    margin-bottom: 16px;
-}
-
-.pr-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
-    margin: 4px 0;
-    border-radius: 4px;
-    background: var(--white, white);
-    border: 1px solid var(--border-color, #e5e5e5);
-}
-
-.pr-item.approved {
-    background: var(--green-50, #f0faf5);
-    border-color: var(--green-200, #cbe2d1);
-}
-
-.pr-item a {
-    color: var(--blue-600, #1068bf);
-    text-decoration: none;
-    font-size: 14px;
-    flex-grow: 1;
-    overflow: hidden;
-}
-
-.pr-item a:hover {
-    text-decoration: underline;
-}
-
-.pr-item-content {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.pr-title {
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-bottom: 2px;
-}
-
-.pr-repo-info {
-    font-size: 12px;
-    color: var(--gl-text-secondary, #586069);
-}
-
-.approval-status {
-    display: inline-flex;
-    align-items: center;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 12px;
-    margin-left: 8px;
-    flex-shrink: 0;
-}
-
-.approval-status .checkmark {
-    font-style: normal;
-    margin-right: 4px;
-    font-weight: bold;
-}
-
-.approval-status.pending {
-    background: var(--gray-50, #f0f0f0);
-    color: var(--gl-text-secondary, #666);
-}
-
-.pr-item .approval-status {
-    background: var(--green-50, #f0faf5);
-    color: var(--green-600, #1aaa55);
-    border: 1px solid var(--green-200, #cbe2d1);
-}
-
-.approve-all-btn {
-    background: var(--green-500, #1aaa55);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    padding: 8px 16px;
-    font-size: 14px;
-    cursor: pointer;
-    width: 100%;
-    transition: background-color 0.2s;
-}
-
-.approve-all-btn:hover {
-    background: var(--green-600, #168f48);
-}
-
-.status {
-    display: inline-block;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    margin-top: 8px;
-}
-
-.status.approved {
-    background: var(--green-50, #f0faf5);
-    color: var(--green-600, #1aaa55);
-    border: 1px solid var(--green-200, #cbe2d1);
-}
-
-.unified-pr-message {
-    padding: 10px;
-    border-radius: 4px;
-    margin: 10px 0;
-}
-
-.unified-pr-message.success {
-    background: var(--green-50, #f0faf5);
-    color: var(--green-600, #1aaa55);
-    border: 1px solid var(--green-200, #cbe2d1);
-}
-
-.unified-pr-message.error {
-    background: var(--red-50, #fff0f0);
-    color: var(--red-600, #c92100);
-    border: 1px solid var(--red-200, #fcc);
-}
-`;
-
-// Inject styles
-const styleSheet = document.createElement('style');
-styleSheet.textContent = styles;
-document.head.appendChild(styleSheet);
+// Load the external CSS file
+loadCSS('content/content.css');

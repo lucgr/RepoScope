@@ -1,6 +1,5 @@
-// Listen for installation
+// Listen for installation and set default settings
 chrome.runtime.onInstalled.addListener(() => {
-    // Set default settings
     chrome.storage.sync.set({
         backendUrl: 'http://localhost:8000',
         gitlabToken: '',
@@ -23,10 +22,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         
         (async () => {
             try {
-                // Execute the fetch request from the background script
+                // Execute the fetch request from the background script and convert to JSON
                 const response = await fetch(request.url, request.options || {});
-                
-                // Convert response to JSON
                 const data = await response.json();
                 
                 // Send back the response
@@ -43,7 +40,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 });
             }
         })();
-        
         return true; // Required for async response
     }
 });

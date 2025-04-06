@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function addRepository(url) {
         // Validate URL format (simple validation)
-        if (!url.startsWith('https://gitlab.com/')) {
+        if (!url.startsWith('https://gitlab.com/')) { // TODO: Improve validation in case other url is used for github url (org)
             alert('Please enter a valid GitLab repository URL (https://gitlab.com/...)');
             return false;
         }
@@ -199,7 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusDiv.textContent = `Valid token (authenticated as ${user.username})`;
                 
                 // Save all settings with username
-                chrome.storage.sync.set({
+                chrome.storage.sync.set({ // TODO: token security?
                     backendUrl,
                     gitlabToken,
                     repoUrls,
@@ -369,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             console.log('Deduplicated unified PRs:', unifiedPRs);
 
-            // Check approval status for each PR in each task
+            // Check approval status for each PR in each task, TODO: use same method as in the content.js?
             const tasksWithApproval = await Promise.all(unifiedPRs.map(async (task) => {
                 const prs = await Promise.all(task.prs.map(async (pr) => {
                     const approvalStatus = await checkPRApprovalStatus(pr.web_url);

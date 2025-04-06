@@ -1,82 +1,140 @@
 .unified-pr-view {
-    background: #f5f5f5;
-    border-radius: 8px;
-    padding: 20px;
-    margin: 20px 0;
-    border: 1px solid #e0e0e0;
+    margin: 16px 0;
+    padding: 16px;
+    background: var(--gray-10, #fafafa);
+    border: 1px solid var(--border-color,rgb(184, 247, 203));
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .unified-pr-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px;
+    margin-bottom: 16px;
 }
 
 .unified-pr-header h3 {
-    margin: 0;
-    color: #333;
-    font-size: 18px;
+    margin: 0 0 8px 0;
+    font-size: 16px;
+    color: var(--gl-theme-accent,rgb(172, 173, 173));
+    font-weight: 600;
+}
+
+.task-name {
+    color: var(--gl-text-secondary, #586069);
+    font-size: 14px;
 }
 
 .unified-pr-list {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    margin-bottom: 16px;
 }
 
-.unified-pr-item {
-    background: white;
-    padding: 12px;
-    border-radius: 6px;
+.pr-item {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    justify-content: space-between;
+    padding: 8px 12px;
+    margin: 4px 0;
+    border-radius: 4px;
+    background: var(--white, white);
+    border: 1px solid var(--border-color, #e5e5e5);
 }
 
-.unified-pr-item .pr-link {
-    color: #1976d2;
+.pr-item.approved {
+    background: var(--green-50, #f0faf5);
+    border-color: var(--green-200, #cbe2d1);
+}
+
+.pr-item a {
+    color: var(--blue-600, #1068bf);
     text-decoration: none;
-    font-weight: 500;
+    font-size: 14px;
+    flex-grow: 1;
+    overflow: hidden;
 }
 
-.unified-pr-item .pr-link:hover {
+.pr-item a:hover {
     text-decoration: underline;
 }
 
-.unified-pr-item .pr-author {
-    color: #666;
-    font-size: 14px;
+.pr-item-content {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
-.unified-pr-actions {
-    margin-top: 15px;
-    display: flex;
-    justify-content: flex-end;
+.pr-title {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+}
+
+.pr-repo-info {
+    font-size: 12px;
+    color: var(--gl-text-secondary, #586069);
+}
+
+.approval-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+
+.approval-status .checkmark {
+    font-style: normal;
+    margin-right: 4px;
+    font-weight: bold;
+}
+
+.approval-status.pending {
+    background: var(--gray-50, #f0f0f0);
+    color: var(--gl-text-secondary, #666);
+}
+
+.pr-item .approval-status {
+    background: var(--green-50, #f0faf5);
+    color: var(--green-600, #1aaa55);
+    border: 1px solid var(--green-200, #cbe2d1);
 }
 
 .approve-all-btn {
-    background: #2ecc71;
+    background: var(--green-500, #1aaa55);
     color: white;
     border: none;
-    padding: 8px 16px;
     border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 14px;
     cursor: pointer;
-    font-weight: 500;
-    transition: background 0.2s;
+    width: 100%;
+    transition: background-color 0.2s;
 }
 
 .approve-all-btn:hover {
-    background: #27ae60;
+    background: var(--green-600, #168f48);
 }
 
 .status {
     display: inline-block;
-    padding: 4px 10px;
-    border-radius: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
     font-size: 12px;
-    font-weight: 500;
+    margin-top: 8px;
+}
+
+.status.approved {
+    background: var(--green-50, #f0faf5);
+    color: var(--green-600, #1aaa55);
+    border: 1px solid var(--green-200, #cbe2d1);
 }
 
 .status.open {
@@ -107,16 +165,30 @@
 .unified-pr-message {
     padding: 10px;
     border-radius: 4px;
-    margin-top: 10px;
-    font-weight: 500;
+    margin: 10px 0;
 }
 
 .unified-pr-message.success {
-    background: #e8f5e9;
-    color: #2e7d32;
+    background: var(--green-50, #f0faf5);
+    color: var(--green-600, #1aaa55);
+    border: 1px solid var(--green-200, #cbe2d1);
 }
 
 .unified-pr-message.error {
-    background: #ffebee;
-    color: #c62828;
-} 
+    background: var(--red-50, #fff0f0);
+    color: var(--red-600, #c92100);
+    border: 1px solid var(--red-200, #fcc);
+}
+
+.unified-pr-message.warning {
+    background: #fff8e1;
+    color: #f57f17;
+    border: 1px solid #ffe082;
+}
+
+/* Container for when fallback to body is used */
+.unified-pr-view-container {
+    max-width: 1000px;
+    margin: 20px auto;
+    padding: 20px;
+}
