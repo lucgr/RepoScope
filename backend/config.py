@@ -38,19 +38,18 @@ try:
     
     if response.status_code == 200:
         user_info = response.json()
-        logger.info(f"Direct API check successful. Username: {user_info.get('username')}")
+
+        # Store the username from the API response in case gl.auth() returns None
+        username = user_info.get('username')
+        logger.info(f"Direct API check successful. Username: {username}")
         
-        # Now initialize the gitlab client
+        # Initialize the gitlab client
         gl = gitlab.Gitlab(
             url=gitlab_url,
             private_token=gitlab_token,
             timeout=30
         )
         
-        # Store the username from the API response in case gl.auth() returns None
-        username = user_info.get('username')
-        
-        # Try the client's auth method, but don't fail if it returns None
         try:
             logger.info("Running gl.auth() as secondary verification...")
             user = gl.auth()
@@ -59,12 +58,12 @@ try:
             else:
                 logger.warning("PyGitlab auth() returned None, but direct API check was successful.")
                 logger.info(f"Using username from direct API call: {username}")
-                # Continue anyway since the direct API call worked
         except Exception as auth_e:
+            # Print error but continue anyway since the direct API call worked
             logger.warning(f"PyGitlab auth() failed, but direct API check was successful: {str(auth_e)}")
-            # Continue anyway since the direct API call worked
+            
     else:
-        # The token is definitely invalid
+        # The token is invalid
         logger.error(f"Direct API verification failed with status {response.status_code}: {response.text}")
         error_detail = response.json() if response.headers.get('content-type') == 'application/json' else response.text
         raise ValueError(f"GitLab API rejected token with status {response.status_code}: {error_detail}")

@@ -62,11 +62,10 @@ async def approve_unified_prs(
         
         # Fetch all PRs from the repositories
         prs = pr_service.fetch_prs(request.repo_urls)
-        logger.info(f"Found {len(prs)} total PRs")
         
         # Filter PRs for the specific task
         task_prs = [pr for pr in prs if pr.task_name == task_name]
-        logger.info(f"Found {len(task_prs)} PRs for task {task_name}")
+        logger.info(f"Found {len(prs)} total PRs, {len(task_prs)} for task {task_name}")
         
         if not task_prs:
             raise HTTPException(status_code=404, detail=f"No PRs found for task {task_name}")

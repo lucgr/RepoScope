@@ -21,10 +21,12 @@ class PR(PRBase):
     assignees: List[dict]
     labels: List[str]
     task_name: Optional[str] = None
+    changes_count: int = 0
+    comments_count: int = 0
 
 class UnifiedPR(BaseModel):
     task_name: str
     prs: List[PR]
     total_changes: int
     total_comments: int
-    status: str  # 'open', 'merged', 'closed' 
+    status: str  # 'open', 'merged', 'closed'

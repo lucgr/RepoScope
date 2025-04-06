@@ -13,9 +13,9 @@ class PRService:
     def extract_task_name(self, branch_name: str) -> str:
         """Extract task name from branch name using common patterns."""
         patterns = [
-            r'^(feature|bug|bugfix|hotfix|fix|chore|task)/([A-Z]+-\d+)',  # JIRA-style with more prefixes
-            r'^(feature|bug|bugfix|hotfix|fix|chore|task)/(\d+)',         # Numeric with more prefixes
-            r'^([A-Z]+-\d+)',                                             # Just ticket number
+            r'^(feature|bug|bugfix|hotfix|fix|chore|task)/([A-Z]+-\d+)', # JIRA-style with more prefixes (e.g., feature/ABC-123)
+            r'^(feature|bug|bugfix|hotfix|fix|chore|task)/(\d+)', # Numeric with more prefixes (e.g., feature/123)
+            r'^([A-Z]+-\d+)', # Just ticket number (e.g., ABC-123)
         ]
         
         for pattern in patterns:
@@ -29,10 +29,8 @@ class PRService:
     def get_project_from_url(self, repo_url: str):
         """Get GitLab project from repository URL."""
         try:
-            # Remove trailing slash and .git if present
+            # Remove trailing slash and .git if present and extract the path from the URL
             repo_url = repo_url.rstrip('/').rstrip('.git')
-            
-            # Extract the path from the URL
             path = repo_url.split(self.gl.url)[1].lstrip('/')
             
             return self.gl.projects.get(path)
@@ -46,21 +44,44 @@ class PRService:
         
         for repo_url in repo_urls:
             try:
-                logger.info(f"Fetching PRs for repository: {repo_url}")
-                
+                logger.debug(f"Fetching PRs for repository: {repo_url}")
                 # Get project with timeout
                 project = self.get_project_from_url(repo_url)
-                
+            
                 try:
                     # Set a timeout for the API request
                     merge_requests = project.mergerequests.list(state='opened', get_all=True, timeout=30)
-                    logger.info(f"Found {len(merge_requests)} open merge requests")
+                    logger.debug(f"Found {len(merge_requests)} open merge requests")
                     
                     for mr in merge_requests:
                         task_name = self.extract_task_name(mr.source_branch)
                         
                         # Log detailed info about the MR
                         logger.debug(f"Processing MR: {mr.iid} - {mr.title} - Branch: {mr.source_branch}")
+                        
+                        # Get detailed MR info including changes and comments
+                        detailed_mr = project.mergerequests.get(mr.iid)
+                        
+                        # Get changes statistics
+                        changes_count = 0
+                        try:
+                            # Sum of additions and deletions if available
+                            if hasattr(detailed_mr, 'changes_count'):
+                                changes_count = detailed_mr.changes_count
+                            elif hasattr(detailed_mr, 'changes'):
+                                changes = detailed_mr.changes()
+                                changes_count = len(changes) if changes else 0
+                        except Exception as e:
+                            logger.warning(f"Could not get changes for MR {mr.iid}: {str(e)}")
+                        
+                        # Get comments count
+                        comments_count = 0
+                        try:
+                            # Try to get discussions/notes
+                            discussions = detailed_mr.discussions.list(all=True)
+                            comments_count = sum(len(d.attributes.get('notes', [])) for d in discussions)
+                        except Exception as e:
+                            logger.warning(f"Could not get comments for MR {mr.iid}: {str(e)}")
                         
                         pr = PR(
                             id=mr.id,
@@ -78,7 +99,9 @@ class PRService:
                             author=mr.author,
                             assignees=mr.assignees,
                             labels=mr.labels,
-                            task_name=task_name
+                            task_name=task_name,
+                            changes_count=changes_count,
+                            comments_count=comments_count
                         )
                         all_prs.append(pr)
                 except gitlab.exceptions.GitlabAuthenticationError as e:
@@ -111,7 +134,6 @@ class PRService:
                 if pr.task_name not in task_groups:
                     task_groups[pr.task_name] = []
                 task_groups[pr.task_name].append(pr)
-                task_groups[pr.task_name].append(pr)
         
         # Create unified PR views
         unified_prs = []
@@ -124,34 +146,15 @@ class PRService:
                 elif all(pr.state == 'closed' for pr in grouped_prs):
                     status = 'closed'
                 
-                unified_pr = UnifiedPR(
-                    task_name=task_name,
-                    prs=grouped_prs,
-                    total_changes=0,  # We don't have this information yet
-                    total_comments=0,  # We don't have this information yet
-                    status=status
-                )
-                unified_prs.append(unified_pr)
-        
-        logger.info(f"Created {len(unified_prs)} unified PR views")
-        return unified_prs
-        
-        # Create unified PR views
-        unified_prs = []
-        for task_name, grouped_prs in task_groups.items():
-            if len(grouped_prs) > 1:  # Only create unified views for tasks with multiple PRs
-                # Determine overall status
-                status = 'open'
-                if all(pr.state == 'merged' for pr in grouped_prs):
-                    status = 'merged'
-                elif all(pr.state == 'closed' for pr in grouped_prs):
-                    status = 'closed'
+                # Calculate total changes and comments
+                total_changes = sum(getattr(pr, 'changes_count', 0) for pr in grouped_prs)
+                total_comments = sum(getattr(pr, 'comments_count', 0) for pr in grouped_prs)
                 
                 unified_pr = UnifiedPR(
                     task_name=task_name,
                     prs=grouped_prs,
-                    total_changes=0,  # We don't have this information yet
-                    total_comments=0,  # We don't have this information yet
+                    total_changes=total_changes,
+                    total_comments=total_comments,
                     status=status
                 )
                 unified_prs.append(unified_pr)
