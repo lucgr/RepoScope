@@ -252,7 +252,7 @@ async function addUnifiedPRView(taskName) {
         const { backendUrl, repoUrls, gitlabToken, username } = await chrome.storage.sync.get(['backendUrl', 'repoUrls', 'gitlabToken', 'username']);
         
         if (!backendUrl || !repoUrls || !gitlabToken || !username) {
-            console.error('Missing required settings');
+            console.error('Missing required settings:', { backendUrl: !!backendUrl, repoUrls: !!repoUrls, gitlabToken: !!gitlabToken, username: !!username });
             return;
         }
 
@@ -282,17 +282,36 @@ async function addUnifiedPRView(taskName) {
             return;
         }
 
-        // Check approval status for each PR
+        // Check approval status for each PR using the updated approval checking logic
         const prsWithApproval = await Promise.all(taskPRs.prs.map(async (pr) => {
+            console.log('Checking approval status for PR:', pr.web_url);
             const approvalStatus = await checkPRApprovalStatus(pr.web_url);
+            console.log('Approval status result:', { url: pr.web_url, isApproved: approvalStatus });
             return { ...pr, isApproved: approvalStatus };
         }));
 
         const taskWithApproval = { ...taskPRs, prs: prsWithApproval };
+        console.log('Task with approval status:', taskWithApproval);
         
         // Create and inject the unified view
         const unifiedView = createUnifiedView(taskWithApproval);
-        injectUnifiedView(unifiedView);
+        await injectUnifiedView(unifiedView);
+
+        // Set up periodic refresh of approval status
+        setInterval(async () => {
+            const updatedPrsWithApproval = await Promise.all(taskPRs.prs.map(async (pr) => {
+                const approvalStatus = await checkPRApprovalStatus(pr.web_url);
+                return { ...pr, isApproved: approvalStatus };
+            }));
+            
+            const updatedTaskWithApproval = { ...taskPRs, prs: updatedPrsWithApproval };
+            const updatedView = createUnifiedView(updatedTaskWithApproval);
+            
+            const existingView = document.querySelector('.unified-pr-view');
+            if (existingView) {
+                existingView.replaceWith(updatedView);
+            }
+        }, 30000); // Refresh every 30 seconds
     } catch (error) {
         console.error('Error adding unified PR view:', error);
     }
@@ -422,14 +441,14 @@ async function injectUnifiedView(view) {
     
     // Try multiple possible injection points
     const injectionPoints = [
-        '.description',
         '.merge-request-description',
         '.detail-page-description',
         '[data-testid="merge-request-description"]',
         '.merge-request-details',
         '.merge-request-info',
         '.mr-widget-content',
-        '.mr-widget-section'
+        '.mr-widget-section',
+        '.description'
     ];
     
     let injectionPoint = null;
@@ -448,10 +467,11 @@ async function injectUnifiedView(view) {
         return;
     }
 
-    // Check if we've already injected the view
-    if (document.querySelector('.unified-pr-view')) {
-        console.log('Unified view already exists');
-        return;
+    // Remove existing unified view if present
+    const existingView = document.querySelector('.unified-pr-view');
+    if (existingView) {
+        console.log('Removing existing unified view');
+        existingView.remove();
     }
 
     // Insert the unified view after the injection point
@@ -489,8 +509,9 @@ async function approveAllPRs(taskName) {
             if (unifiedView) {
                 unifiedView.innerHTML = `
                     <div class="unified-pr-header">
-                        <h3>Related PRs for ${taskName}</h3>
-                        <span class="status success">Approved</span>
+                        <h3>Related Merge Requests</h3>
+                        <div class="task-name">Task: ${taskName}</div>
+                        <div class="status approved">All PRs Approved</div>
                     </div>
                     <div class="unified-pr-message success">
                         Successfully approved all related PRs
@@ -501,28 +522,30 @@ async function approveAllPRs(taskName) {
             // Wait longer before reloading to allow GitLab API to update
             await new Promise(resolve => setTimeout(resolve, 5000));
             
-            // Verify approval status before reloading
-            const verificationAttempts = 3;
-            for (let i = 0; i < verificationAttempts; i++) {
-                const allApproved = await verifyAllPRsApproved(taskName);
-                if (allApproved) {
-                    window.location.reload();
-                    return;
-                }
-                // Wait between verification attempts
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            }
+            // Instead of reloading the page, update the view with new data
+            const queryString = urls.map(url => `repo_urls=${encodeURIComponent(url)}`).join('&');
+            const prsResponse = await fetch(`${backendUrl}/api/prs/unified?${queryString}`);
             
-            // If we get here, show a warning that approval might take longer
-            if (unifiedView) {
-                unifiedView.innerHTML += `
-                    <div class="unified-pr-message warning">
-                        Approval successful but changes may take a few moments to reflect in GitLab.
-                    </div>
-                `;
+            if (prsResponse.ok) {
+                const unifiedPRs = await prsResponse.json();
+                const taskPRs = unifiedPRs.find(task => task.task_name === taskName);
+                
+                if (taskPRs) {
+                    // Check approval status for each PR
+                    const prsWithApproval = await Promise.all(taskPRs.prs.map(async (pr) => {
+                        const approvalStatus = await checkPRApprovalStatus(pr.web_url);
+                        return { ...pr, isApproved: approvalStatus };
+                    }));
+
+                    const taskWithApproval = { ...taskPRs, prs: prsWithApproval };
+                    
+                    // Create and inject the updated view
+                    const updatedView = createUnifiedView(taskWithApproval);
+                    if (unifiedView) {
+                        unifiedView.replaceWith(updatedView);
+                    }
+                }
             }
-            // Reload anyway after warning
-            setTimeout(() => window.location.reload(), 2000);
         } else {
             const error = await response.text();
             console.error('Failed to approve PRs:', error);
@@ -530,8 +553,9 @@ async function approveAllPRs(taskName) {
             if (unifiedView) {
                 unifiedView.innerHTML = `
                     <div class="unified-pr-header">
-                        <h3>Related PRs for ${taskName}</h3>
-                        <span class="status error">Error</span>
+                        <h3>Related Merge Requests</h3>
+                        <div class="task-name">Task: ${taskName}</div>
+                        <div class="status error">Error</div>
                     </div>
                     <div class="unified-pr-message error">
                         Error approving PRs: ${error}
@@ -545,37 +569,15 @@ async function approveAllPRs(taskName) {
         if (unifiedView) {
             unifiedView.innerHTML = `
                 <div class="unified-pr-header">
-                    <h3>Related PRs for ${taskName}</h3>
-                    <span class="status error">Error</span>
+                    <h3>Related Merge Requests</h3>
+                    <div class="task-name">Task: ${taskName}</div>
+                    <div class="status error">Error</div>
                 </div>
                 <div class="unified-pr-message error">
                     Error approving PRs: ${error.message}
                 </div>
             `;
         }
-    }
-}
-
-// Helper function to verify all PRs are approved
-async function verifyAllPRsApproved(taskName) {
-    try {
-        const { backendUrl, repoUrls } = await chrome.storage.sync.get(['backendUrl', 'repoUrls']);
-        const urls = repoUrls.split('\n').filter(url => url.trim()).map(url => encodeURIComponent(url));
-        const queryString = urls.map(url => `repo_urls=${url}`).join('&');
-        const response = await fetch(`${backendUrl}/api/prs/unified?${queryString}`);
-        
-        if (!response.ok) return false;
-        
-        const unifiedPRs = await response.json();
-        const taskPRs = unifiedPRs.find(task => task.task_name === taskName);
-        
-        if (!taskPRs) return false;
-        
-        const approvalStatuses = await Promise.all(taskPRs.prs.map(pr => checkPRApprovalStatus(pr.web_url)));
-        return approvalStatuses.every(status => status === true);
-    } catch (error) {
-        console.error('Error verifying PR approvals:', error);
-        return false;
     }
 }
 
