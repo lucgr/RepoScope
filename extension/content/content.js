@@ -232,9 +232,9 @@ if (document.readyState === 'loading') {
 
 function extractTaskName(branchName) {
     const patterns = [
-        /^(feature|bugfix|hotfix)\/([A-Z]+-\d+)/,  // JIRA-style
-        /^(feature|bugfix|hotfix)\/(\d+)/,         // Numeric
-        /^([A-Z]+-\d+)/                            // Just ticket number
+        /^(feature|bug|bugfix|hotfix|fix|chore|task)\/([A-Z]+-\d+)/i,  // JIRA-style with more prefixes
+        /^(feature|bug|bugfix|hotfix|fix|chore|task)\/(\d+)/i,         // Numeric with more prefixes
+        /^([A-Z]+-\d+)/                                                // Just ticket number
     ];
     
     for (const pattern of patterns) {
@@ -243,6 +243,9 @@ function extractTaskName(branchName) {
             return match[2] || match[1];
         }
     }
+    
+    // Additional logging to help debug
+    console.log('Could not extract task name from branch using patterns:', patterns.map(p => p.toString()));
     return null;
 }
 

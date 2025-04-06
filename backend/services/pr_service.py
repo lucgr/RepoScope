@@ -13,15 +13,17 @@ class PRService:
     def extract_task_name(self, branch_name: str) -> str:
         """Extract task name from branch name using common patterns."""
         patterns = [
-            r'^(feature|bugfix|hotfix)/([A-Z]+-\d+)',  # JIRA-style
-            r'^(feature|bugfix|hotfix)/(\d+)',         # Numeric
-            r'^([A-Z]+-\d+)',                          # Just ticket number
+            r'^(feature|bug|bugfix|hotfix|fix|chore|task)/([A-Z]+-\d+)',  # JIRA-style with more prefixes
+            r'^(feature|bug|bugfix|hotfix|fix|chore|task)/(\d+)',         # Numeric with more prefixes
+            r'^([A-Z]+-\d+)',                                             # Just ticket number
         ]
         
         for pattern in patterns:
-            match = re.match(pattern, branch_name)
+            match = re.match(pattern, branch_name, re.IGNORECASE)
             if match:
                 return match.group(2) if len(match.groups()) > 1 else match.group(1)
+        
+        logger.debug(f"Could not extract task name from branch '{branch_name}' using patterns: {patterns}")
         return None
 
     def get_project_from_url(self, repo_url: str):
