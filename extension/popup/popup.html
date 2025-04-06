@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Unified PR Viewer</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Unified PR Viewer</h1>
+        
+        <div class="settings-section">
+            <h2>Settings</h2>
+            <div class="form-group">
+                <label for="backend-url">Backend URL:</label>
+                <input type="text" id="backend-url" placeholder="http://localhost:8000">
+            </div>
+            <div class="form-group">
+                <label for="gitlab-token">GitLab Token:</label>
+                <input type="password" id="gitlab-token" placeholder="Your GitLab token">
+            </div>
+            <div class="form-group">
+                <label for="project-ids">Project IDs (comma-separated):</label>
+                <input type="text" id="project-ids" placeholder="123,456,789">
+            </div>
+            <button id="save-settings">Save Settings</button>
+        </div>
+
+        <div class="unified-prs-section">
+            <h2>Unified PRs</h2>
+            <div id="unified-prs-list">
+                <!-- Unified PRs will be loaded here -->
+            </div>
+        </div>
+    </div>
+    <script src="popup.js"></script>
+</body>
+</html> 
