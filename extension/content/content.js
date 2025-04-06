@@ -251,7 +251,7 @@ async function addUnifiedPRView(taskName) {
         // Get settings from storage
         const { backendUrl, repoUrls, gitlabToken, username } = await chrome.storage.sync.get(['backendUrl', 'repoUrls', 'gitlabToken', 'username']);
         
-        if (!backendUrl || !repoUrls || !gitlabToken) {
+        if (!backendUrl || !repoUrls || !gitlabToken || !username) {
             console.error('Missing required settings');
             return;
         }
@@ -301,41 +301,61 @@ async function addUnifiedPRView(taskName) {
 async function checkPRApprovalStatus(prUrl) {
     try {
         // Extract project and MR ID from URL
-        const match = prUrl.match(/gitlab\.com\/([^/]+)\/-\/merge_requests\/(\d+)/);
-        if (!match) return false;
+        const match = prUrl.match(/gitlab\.com\/([^/]+(?:\/[^/]+)*?)\/\-\/merge_requests\/(\d+)/);
+        if (!match) {
+            console.error('Could not extract project path and MR ID from URL:', prUrl);
+            return false;
+        }
 
         const [_, projectPath, mrId] = match;
         
         // Get GitLab token and username from storage
         const { gitlabToken, username } = await chrome.storage.sync.get(['gitlabToken', 'username']);
-        if (!gitlabToken) {
-            console.error('GitLab token not found');
+        if (!gitlabToken || !username) {
+            console.error('Missing GitLab token or username');
             return false;
         }
 
-        // Fetch approval status from GitLab API
-        const response = await fetch(`https://gitlab.com/api/v4/projects/${encodeURIComponent(projectPath)}/merge_requests/${mrId}/approvals`, {
+        // First, get the project ID
+        const projectResponse = await fetch(`https://gitlab.com/api/v4/projects/${encodeURIComponent(projectPath)}`, {
             headers: {
                 'Authorization': `Bearer ${gitlabToken}`
             }
         });
 
-        if (!response.ok) {
-            console.error('Failed to fetch approval status:', response.status);
+        if (!projectResponse.ok) {
+            console.error('Failed to fetch project info:', projectResponse.status);
             return false;
         }
 
-        const data = await response.json();
-        console.log('Approval status response:', data);
+        const projectData = await projectResponse.json();
+        const projectId = projectData.id;
+
+        // Now fetch the MR approvals
+        const approvalsResponse = await fetch(`https://gitlab.com/api/v4/projects/${projectId}/merge_requests/${mrId}/approvals`, {
+            headers: {
+                'Authorization': `Bearer ${gitlabToken}`
+            }
+        });
+
+        if (!approvalsResponse.ok) {
+            console.error('Failed to fetch approval status:', approvalsResponse.status);
+            return false;
+        }
+
+        const data = await approvalsResponse.json();
+        console.log('Approval status response for PR:', prUrl, data);
         
         // Check if the current user has approved
-        if (username && data.approved_by) {
-            const hasApproved = data.approved_by.some(approver => approver.user.username === username);
-            console.log('User approval status:', { username, hasApproved });
+        if (data.approved_by && Array.isArray(data.approved_by)) {
+            const hasApproved = data.approved_by.some(approver => 
+                approver.user && approver.user.username === username
+            );
+            console.log('User approval status:', { username, hasApproved, approvers: data.approved_by.map(a => a.user.username) });
             return hasApproved;
         }
         
-        return data.approved || false;
+        return false;
     } catch (error) {
         console.error('Error checking PR approval status:', error);
         return false;
@@ -365,19 +385,22 @@ function createUnifiedView(taskPRs) {
 
     // Add PR items
     taskPRs.prs.forEach(pr => {
-        console.log('PR approval status:', { prUrl: pr.web_url, isApproved: pr.isApproved });
+        console.log('PR approval status:', { url: pr.web_url, isApproved: pr.isApproved });
         const prItem = document.createElement('div');
         prItem.className = `pr-item ${pr.isApproved ? 'approved' : ''}`;
         prItem.innerHTML = `
             <a href="${pr.web_url}" target="_blank">${pr.repository_name} #${pr.iid}</a>
-            ${pr.isApproved ? '<span class="approval-status">✓ Approved</span>' : ''}
+            ${pr.isApproved ? 
+                '<span class="approval-status"><i class="checkmark">&#10003;</i> Approved</span>' : 
+                '<span class="approval-status pending">Not approved</span>'
+            }
         `;
         prList.appendChild(prItem);
     });
     
     container.appendChild(prList);
 
-    // Add approve button if not all PRs are approved
+    // Add approve button or approved status
     if (!allApproved) {
         const approveButton = document.createElement('button');
         approveButton.className = 'approve-all-btn';
@@ -387,7 +410,7 @@ function createUnifiedView(taskPRs) {
     } else {
         const approvedStatus = document.createElement('div');
         approvedStatus.className = 'status approved';
-        approvedStatus.textContent = 'All Approved';
+        approvedStatus.textContent = 'All PRs Approved';
         container.appendChild(approvedStatus);
     }
 
@@ -554,4 +577,122 @@ async function verifyAllPRsApproved(taskName) {
         console.error('Error verifying PR approvals:', error);
         return false;
     }
-} 
+}
+
+// Add CSS styles for the unified PR view
+const styles = `
+.unified-pr-view {
+    margin: 16px 0;
+    padding: 16px;
+    background: #f9f9f9;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+}
+
+.unified-pr-header {
+    margin-bottom: 16px;
+}
+
+.unified-pr-header h3 {
+    margin: 0 0 8px 0;
+    font-size: 16px;
+    color: #2e2e2e;
+}
+
+.task-name {
+    color: #666;
+    font-size: 14px;
+}
+
+.unified-pr-list {
+    margin-bottom: 16px;
+}
+
+.pr-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    margin: 4px 0;
+    border-radius: 4px;
+    background: white;
+    border: 1px solid #e5e5e5;
+}
+
+.pr-item.approved {
+    background: #f3f9f4;
+    border-color: #97d3a0;
+}
+
+.pr-item a {
+    color: #1068bf;
+    text-decoration: none;
+    font-size: 14px;
+    flex-grow: 1;
+}
+
+.pr-item a:hover {
+    text-decoration: underline;
+}
+
+.approval-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    margin-left: 8px;
+}
+
+.approval-status .checkmark {
+    font-style: normal;
+    margin-right: 4px;
+    font-weight: bold;
+}
+
+.approval-status.pending {
+    background: #f0f0f0;
+    color: #666;
+}
+
+.pr-item .approval-status {
+    background: #f3f9f4;
+    color: #1aaa55;
+    border: 1px solid #97d3a0;
+}
+
+.approve-all-btn {
+    background: #1aaa55;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 14px;
+    cursor: pointer;
+    width: 100%;
+    transition: background-color 0.2s;
+}
+
+.approve-all-btn:hover {
+    background: #168f48;
+}
+
+.status {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    margin-top: 8px;
+}
+
+.status.approved {
+    background: #f3f9f4;
+    color: #1aaa55;
+    border: 1px solid #97d3a0;
+}
+`;
+
+// Inject styles
+const styleSheet = document.createElement('style');
+styleSheet.textContent = styles;
+document.head.appendChild(styleSheet); 
