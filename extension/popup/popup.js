@@ -6,6 +6,27 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('gitlab-token').value = data.gitlabToken || '';
         document.getElementById('repo-urls').value = data.repoUrls || '';
         
+        // Extract username from GitLab token if not already stored
+        if (data.gitlabToken && !data.username) {
+            fetch('https://gitlab.com/api/v4/user', {
+                headers: {
+                    'Authorization': `Bearer ${data.gitlabToken}`
+                }
+            })
+            .then(response => response.json())
+            .then(user => {
+                console.log('Got GitLab user:', user);
+                if (user.username) {
+                    chrome.storage.sync.set({ username: user.username }, () => {
+                        console.log('Username saved:', user.username);
+                        // Reload PRs after getting username
+                        loadUnifiedPRs();
+                    });
+                }
+            })
+            .catch(error => console.error('Error fetching GitLab user:', error));
+        }
+        
         // If we have all required settings, load unified PRs
         if (data.backendUrl && data.gitlabToken && data.repoUrls) {
             loadUnifiedPRs();
@@ -20,25 +41,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
         console.log('Saving settings:', { backendUrl, gitlabToken, repoUrls });
 
-        chrome.storage.sync.set({
-            backendUrl,
-            gitlabToken,
-            repoUrls
-        }, () => {
-            console.log('Settings saved successfully');
-            // Reload unified PRs after saving settings
-            loadUnifiedPRs();
-        });
+        // When token changes, fetch and store username
+        if (gitlabToken) {
+            fetch('https://gitlab.com/api/v4/user', {
+                headers: {
+                    'Authorization': `Bearer ${gitlabToken}`
+                }
+            })
+            .then(response => response.json())
+            .then(user => {
+                console.log('Got GitLab user:', user);
+                chrome.storage.sync.set({
+                    backendUrl,
+                    gitlabToken,
+                    repoUrls,
+                    username: user.username
+                }, () => {
+                    console.log('Settings saved successfully with username');
+                    loadUnifiedPRs();
+                });
+            })
+            .catch(error => {
+                console.error('Error fetching GitLab user:', error);
+                chrome.storage.sync.set({
+                    backendUrl,
+                    gitlabToken,
+                    repoUrls
+                }, () => {
+                    console.log('Settings saved successfully without username');
+                    loadUnifiedPRs();
+                });
+            });
+        }
     });
 
     // Load unified PRs
     async function loadUnifiedPRs() {
-        const { backendUrl, repoUrls, gitlabToken } = await chrome.storage.sync.get(['backendUrl', 'repoUrls', 'gitlabToken']);
+        const { backendUrl, repoUrls, gitlabToken, username } = await chrome.storage.sync.get(['backendUrl', 'repoUrls', 'gitlabToken', 'username']);
         
         console.log('Loading unified PRs with:', { 
             hasBackendUrl: !!backendUrl,
             hasRepoUrls: !!repoUrls,
             hasGitlabToken: !!gitlabToken,
+            hasUsername: !!username,
             repoCount: repoUrls ? repoUrls.split('\n').filter(url => url.trim()).length : 0
         });
         
@@ -81,18 +126,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Check approval status for each PR
-            const prsWithApproval = await Promise.all(unifiedPRs.map(async (task) => {
+            // Check approval status for each PR in each task
+            const tasksWithApproval = await Promise.all(unifiedPRs.map(async (task) => {
                 const prs = await Promise.all(task.prs.map(async (pr) => {
                     const approvalStatus = await checkPRApprovalStatus(pr.web_url);
                     return { ...pr, isApproved: approvalStatus };
                 }));
-                const allApproved = prs.every(pr => pr.isApproved);
-                return { ...task, prs, allApproved };
+                return { ...task, prs };
             }));
 
-            // Update the UI
-            updateUnifiedPRsUI(prsWithApproval);
+            // Update the UI with approval status
+            updateUnifiedPRsUI(tasksWithApproval);
         } catch (error) {
             console.error('Error loading unified PRs:', error);
             document.getElementById('unified-prs-list').innerHTML = `
@@ -106,41 +150,61 @@ document.addEventListener('DOMContentLoaded', () => {
     async function checkPRApprovalStatus(prUrl) {
         try {
             // Extract project and MR ID from URL
-            const match = prUrl.match(/gitlab\.com\/([^/]+)\/-\/merge_requests\/(\d+)/);
-            if (!match) return false;
-
-            const [_, projectPath, mrId] = match;
-            
-            // Get GitLab token from storage
-            const { gitlabToken, username } = await chrome.storage.sync.get(['gitlabToken', 'username']);
-            if (!gitlabToken) {
-                console.error('GitLab token not found');
+            const match = prUrl.match(/gitlab\.com\/([^/]+(?:\/[^/]+)*?)\/\-\/merge_requests\/(\d+)/);
+            if (!match) {
+                console.error('Could not extract project path and MR ID from URL:', prUrl);
                 return false;
             }
 
-            // Fetch approval status from GitLab API
-            const response = await fetch(`https://gitlab.com/api/v4/projects/${encodeURIComponent(projectPath)}/merge_requests/${mrId}/approvals`, {
+            const [_, projectPath, mrId] = match;
+            
+            // Get GitLab token and username from storage
+            const { gitlabToken, username } = await chrome.storage.sync.get(['gitlabToken', 'username']);
+            if (!gitlabToken || !username) {
+                console.error('Missing GitLab token or username');
+                return false;
+            }
+
+            // First, get the project ID
+            const projectResponse = await fetch(`https://gitlab.com/api/v4/projects/${encodeURIComponent(projectPath)}`, {
                 headers: {
                     'Authorization': `Bearer ${gitlabToken}`
                 }
             });
 
-            if (!response.ok) {
-                console.error('Failed to fetch approval status:', response.status);
+            if (!projectResponse.ok) {
+                console.error('Failed to fetch project info:', projectResponse.status);
                 return false;
             }
 
-            const data = await response.json();
-            console.log('Approval status response:', data);
+            const projectData = await projectResponse.json();
+            const projectId = projectData.id;
+
+            // Now fetch the MR approvals
+            const approvalsResponse = await fetch(`https://gitlab.com/api/v4/projects/${projectId}/merge_requests/${mrId}/approvals`, {
+                headers: {
+                    'Authorization': `Bearer ${gitlabToken}`
+                }
+            });
+
+            if (!approvalsResponse.ok) {
+                console.error('Failed to fetch approval status:', approvalsResponse.status);
+                return false;
+            }
+
+            const data = await approvalsResponse.json();
+            console.log('Approval status response for PR:', prUrl, data);
             
             // Check if the current user has approved
-            if (username && data.approved_by) {
-                const hasApproved = data.approved_by.some(approver => approver.user.username === username);
-                console.log('User approval status:', { username, hasApproved });
+            if (data.approved_by && Array.isArray(data.approved_by)) {
+                const hasApproved = data.approved_by.some(approver => 
+                    approver.user && approver.user.username === username
+                );
+                console.log('User approval status:', { username, hasApproved, approvers: data.approved_by.map(a => a.user.username) });
                 return hasApproved;
             }
             
-            return data.approved || false;
+            return false;
         } catch (error) {
             console.error('Error checking PR approval status:', error);
             return false;
@@ -154,37 +218,62 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        container.innerHTML = unifiedPRs.map(task => `
-            <div class="task-group ${task.allApproved ? 'all-approved' : ''}">
-                <h3>${task.task_name}</h3>
-                ${task.allApproved ? '<div class="status approved">All Approved</div>' : ''}
-                <div class="pr-list">
-                    ${task.prs.map(pr => `
-                        <div class="pr-item ${pr.isApproved ? 'approved' : ''}">
-                            <a href="${pr.web_url}" target="_blank">${pr.repository_name} #${pr.iid}</a>
-                            ${pr.isApproved ? '<span class="approval-status">✓ Approved</span>' : ''}
-                        </div>
-                    `).join('')}
+        console.log('Updating UI with PRs:', JSON.stringify(unifiedPRs, null, 2));
+
+        container.innerHTML = unifiedPRs.map(task => {
+            const allApproved = task.prs.every(pr => pr.isApproved);
+            console.log(`Task ${task.task_name} approval status:`, {
+                taskName: task.task_name,
+                allApproved,
+                prs: task.prs.map(pr => ({
+                    url: pr.web_url,
+                    isApproved: pr.isApproved
+                }))
+            });
+            
+            return `
+                <div class="task-group ${allApproved ? 'all-approved' : ''}" data-task-name="${task.task_name}">
+                    <h3>${task.task_name}</h3>
+                    <div class="pr-list">
+                        ${task.prs.map(pr => {
+                            console.log(`PR ${pr.web_url} status:`, {
+                                url: pr.web_url,
+                                isApproved: pr.isApproved,
+                                repository: pr.repository_name,
+                                id: pr.iid
+                            });
+                            return `
+                                <div class="pr-item ${pr.isApproved ? 'approved' : ''}" data-url="${pr.web_url}">
+                                    <a href="${pr.web_url}" target="_blank">${pr.repository_name} #${pr.iid}</a>
+                                    ${pr.isApproved ? 
+                                        '<span class="approval-status"><i class="checkmark">&#10003;</i> Approved</span>' : 
+                                        '<span class="approval-status pending">Not approved</span>'
+                                    }
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                    ${allApproved ? 
+                        '<div class="status approved">All PRs Approved</div>' : 
+                        `<button class="approve-all-btn" data-task-name="${task.task_name}">
+                            Approve All
+                        </button>`
+                    }
                 </div>
-                ${!task.allApproved ? `
-                    <button class="approve-all-btn" data-task-name="${task.task_name}">
-                        Approve All
-                    </button>
-                ` : ''}
-            </div>
-        `).join('');
+            `;
+        }).join('');
 
         // Add event listeners to approve buttons
         document.querySelectorAll('.approve-all-btn').forEach(button => {
-            button.addEventListener('click', () => {
+            button.addEventListener('click', async () => {
                 const taskName = button.dataset.taskName;
-                approveAllPRs(taskName);
+                await approveAllPRs(taskName);
             });
         });
     }
 
-    // Define approvePRs function
-    async function approvePRs(taskName) {
+    // Rename approvePRs to approveAllPRs to match the usage
+    async function approveAllPRs(taskName) {
         console.log('Approve button clicked for task:', taskName);
         const { backendUrl, repoUrls } = await chrome.storage.sync.get(['backendUrl', 'repoUrls']);
         
@@ -216,23 +305,39 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (response.ok) {
                 console.log('Successfully approved PRs');
-                // Show success message
-                const prsList = document.getElementById('unified-prs-list');
-                prsList.innerHTML = `<p class="success">Successfully approved PRs for ${taskName}</p>`;
-                // Reload the PRs list after a short delay
-                setTimeout(loadUnifiedPRs, 2000);
+                // Show success message but keep the existing UI
+                const taskGroup = document.querySelector(`.task-group[data-task-name="${taskName}"]`);
+                if (taskGroup) {
+                    const statusDiv = document.createElement('div');
+                    statusDiv.className = 'unified-pr-message success';
+                    statusDiv.textContent = 'Successfully approved PRs';
+                    taskGroup.appendChild(statusDiv);
+                }
+                // Wait a bit before reloading to allow GitLab API to update
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                await loadUnifiedPRs();
             } else {
                 const error = await response.text();
                 console.error('Failed to approve PRs:', error);
                 // Show error message
-                const prsList = document.getElementById('unified-prs-list');
-                prsList.innerHTML = `<p class="error">Error approving PRs: ${error}</p>`;
+                const taskGroup = document.querySelector(`.task-group[data-task-name="${taskName}"]`);
+                if (taskGroup) {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'unified-pr-message error';
+                    errorDiv.textContent = `Error: ${error}`;
+                    taskGroup.appendChild(errorDiv);
+                }
             }
         } catch (error) {
             console.error('Error approving PRs:', error);
             // Show error message
-            const prsList = document.getElementById('unified-prs-list');
-            prsList.innerHTML = `<p class="error">Error approving PRs: ${error.message}</p>`;
+            const taskGroup = document.querySelector(`.task-group[data-task-name="${taskName}"]`);
+            if (taskGroup) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'unified-pr-message error';
+                errorDiv.textContent = `Error: ${error.message}`;
+                taskGroup.appendChild(errorDiv);
+            }
         }
     }
 

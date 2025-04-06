@@ -137,4 +137,143 @@ button:hover {
     padding: 10px;
     border-radius: 4px;
     margin: 10px 0;
+}
+
+.unified-prs {
+    padding: 16px;
+}
+
+.unified-prs h2 {
+    font-size: 18px;
+    margin-bottom: 16px;
+    color: #2e2e2e;
+}
+
+.task-group {
+    background: #f9f9f9;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 16px;
+}
+
+.task-group h3 {
+    font-size: 16px;
+    margin: 0 0 8px 0;
+    color: #2e2e2e;
+}
+
+.pr-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    margin: 4px 0;
+    border-radius: 4px;
+    background: white;
+    border: 1px solid #e5e5e5;
+}
+
+.pr-item.approved {
+    background: #f3f9f4;
+    border-color: #97d3a0;
+}
+
+.pr-item a {
+    color: #1068bf;
+    text-decoration: none;
+    font-size: 14px;
+    flex-grow: 1;
+}
+
+.pr-item a:hover {
+    text-decoration: underline;
+}
+
+.approval-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    margin-left: 8px;
+}
+
+.approval-status .checkmark {
+    font-style: normal;
+    margin-right: 4px;
+    font-weight: bold;
+}
+
+.approval-status.pending {
+    background: #f0f0f0;
+    color: #666;
+}
+
+.pr-item .approval-status {
+    background: #f3f9f4;
+    color: #1aaa55;
+    border: 1px solid #97d3a0;
+}
+
+.approve-all-btn {
+    background: #1aaa55;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 14px;
+    cursor: pointer;
+    margin-top: 8px;
+    width: 100%;
+    transition: background-color 0.2s;
+}
+
+.approve-all-btn:hover {
+    background: #168f48;
+}
+
+.status {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    margin-top: 8px;
+}
+
+.status.approved {
+    background: #f3f9f4;
+    color: #1aaa55;
+    border: 1px solid #97d3a0;
+}
+
+.status.error {
+    background: #fef0f0;
+    color: #dd2b0e;
+    border: 1px solid #fcbfbf;
+}
+
+.unified-pr-message {
+    margin-top: 8px;
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.unified-pr-message.success {
+    background: #f3f9f4;
+    color: #1aaa55;
+    border: 1px solid #97d3a0;
+}
+
+.unified-pr-message.error {
+    background: #fef0f0;
+    color: #dd2b0e;
+    border: 1px solid #fcbfbf;
+}
+
+.unified-pr-message.warning {
+    background: #fff8e5;
+    color: #b17810;
+    border: 1px solid #fbe5b5;
 } 
