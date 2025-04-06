@@ -106,7 +106,7 @@ class PRService:
                         all_prs.append(pr)
                 except gitlab.exceptions.GitlabAuthenticationError as e:
                     logger.error(f"Authentication error fetching MRs for {repo_url}: {str(e)}")
-                    raise ValueError(f"GitLab authentication failed - check your token")
+                    raise ValueError("GitLab authentication failed - check your token")
                 except gitlab.exceptions.GitlabListError as e:
                     if hasattr(e, 'response_code') and e.response_code == 403:
                         logger.error(f"Permission denied (403) listing MRs for {repo_url}")

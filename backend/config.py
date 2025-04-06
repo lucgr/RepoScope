@@ -2,7 +2,6 @@ from dotenv import load_dotenv
 import os
 import gitlab
 import logging
-import sys
 import requests
 
 # Configure logging

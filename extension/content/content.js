@@ -1,12 +1,12 @@
-console.log('%c Unified PR Viewer Extension Loaded ', 'background: #222; color:rgb(82, 218, 172); font-size: 16px;');
+console.log("%c Unified PR Viewer Extension Loaded ", "background: #222; color:rgb(82, 218, 172); font-size: 16px;");
 
 // Immediately check storage to verify settings
-chrome.storage.sync.get(['backendUrl', 'repoUrls'], (result) => {
-    console.log('%c Extension Settings ', 'background: #222; color:rgb(115, 245, 165)', {
+chrome.storage.sync.get(["backendUrl", "repoUrls"], (result) => {
+    console.log("%c Extension Settings ", "background: #222; color:rgb(115, 245, 165)", {
         hasBackendUrl: !!result.backendUrl,
         hasRepoUrls: !!result.repoUrls,
-        backendUrl: result.backendUrl ? result.backendUrl.substring(0, 10) + '...' : 'not set',
-        repoUrls: result.repoUrls ? result.repoUrls.split('\n').length + ' repos configured' : 'not set'
+        backendUrl: result.backendUrl ? result.backendUrl.substring(0, 10) + "..." : "not set",
+        repoUrls: result.repoUrls ? result.repoUrls.split("\n").length + " repos configured" : "not set"
     });
 });
 
@@ -14,20 +14,20 @@ chrome.storage.sync.get(['backendUrl', 'repoUrls'], (result) => {
 async function initializePRView() {
     try {
         // Debug the current page URL
-        console.log('Current URL:', window.location.href);
-        console.log('Pathname:', window.location.pathname);
+        console.log("Current URL:", window.location.href);
+        console.log("Pathname:", window.location.pathname);
         
         // Check if we're on a merge request page
-        if (!window.location.pathname.includes('/-/merge_requests/')) {
-            console.log('Not on a merge request page, skipping injection');
+        if (!window.location.pathname.includes("/-/merge_requests/")) {
+            console.log("Not on a merge request page, skipping injection");
             return;
         }
-        console.log('On a merge request page, proceeding with injection');
+        console.log("On a merge request page, proceeding with injection");
 
         // Get settings from storage
-        const settings = await chrome.storage.sync.get(['backendUrl', 'repoUrls', 'gitlabToken', 'username']);
+        const settings = await chrome.storage.sync.get(["backendUrl", "repoUrls", "gitlabToken", "username"]);
         if (!settings.backendUrl || !settings.repoUrls || !settings.gitlabToken || !settings.username) {
-            console.error('Missing required settings:', {
+            console.error("Missing required settings:", {
                 hasBackendUrl: !!settings.backendUrl,
                 hasRepoUrls: !!settings.repoUrls,
                 hasGitlabToken: !!settings.gitlabToken,
@@ -35,14 +35,14 @@ async function initializePRView() {
             });
             return;
         }
-        console.log('All required settings found, proceeding with branch detection');
+        console.log("All required settings found, proceeding with branch detection");
 
         // Try multiple selectors for the branch name
         const branchSelectors = [
-            '.ref-container',                      // Primary selector based on actual DOM
-            '.detail-page-description .ref-container', // Fallback for description area
-            '.merge-request-details .ref-name',    // Additional selector
-            '.merge-request-title-source'          // Title source element
+            ".ref-container",                      // Primary selector based on actual DOM
+            ".detail-page-description .ref-container", // Fallback for description area
+            ".merge-request-details .ref-name",    // Additional selector
+            ".merge-request-title-source"          // Title source element
         ];
 
         // Try to get branch name from URL first
@@ -60,9 +60,9 @@ async function initializePRView() {
                 for (const element of elements) {
                     // Try to get branch name from different sources
                     const text = element.textContent?.trim();
-                    const title = element.getAttribute('title');
+                    const title = element.getAttribute("title");
                     
-                    console.log(`Checking element:`, {
+                    console.log("Checking element:", {
                         selector,
                         text,
                         title,
@@ -72,12 +72,12 @@ async function initializePRView() {
                     if (title) {
                         branchElement = element;
                         branchName = title;
-                        console.log('Found branch name from title:', branchName);
+                        console.log("Found branch name from title:", branchName);
                         break;
                     } else if (text) {
                         branchElement = element;
                         branchName = text;
-                        console.log('Found branch name from text:', branchName);
+                        console.log("Found branch name from text:", branchName);
                         break;
                     }
                 }
@@ -87,22 +87,22 @@ async function initializePRView() {
         }
 
         if (!branchName) {
-            console.error('Could not find branch name after all attempts');
+            console.error("Could not find branch name after all attempts");
             return;
         }
 
         // Extract task name from branch name
         const taskName = extractTaskName(branchName);
         if (!taskName) {
-            console.log('Could not extract task name from branch:', branchName);
+            console.log("Could not extract task name from branch:", branchName);
             return;
         }
-        console.log('Extracted task name:', taskName);
+        console.log("Extracted task name:", taskName);
 
         // Add unified PR view to the page
         addUnifiedPRView(taskName);
     } catch (error) {
-        console.error('Error initializing PR view:', error);
+        console.error("Error initializing PR view:", error);
     }
 }
 
@@ -117,8 +117,8 @@ new MutationObserver(() => {
 }).observe(document, { subtree: true, childList: true });
 
 // Run on initial page load
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializePRView);
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initializePRView);
 } else {
     initializePRView();
 }
@@ -143,19 +143,19 @@ function extractTaskName(branchName) {
 function proxyFetch(url, options = {}) {
     return new Promise((resolve, reject) => {
         chrome.runtime.sendMessage({
-            type: 'PROXY_FETCH',
+            type: "PROXY_FETCH",
             url: url,
             options: options
         }, response => {
             if (chrome.runtime.lastError) {
-                console.error('Error in proxyFetch runtime:', chrome.runtime.lastError);
+                console.error("Error in proxyFetch runtime:", chrome.runtime.lastError);
                 return reject(new Error(chrome.runtime.lastError.message));
             }
             
             if (response.success) {
                 resolve(response.data);
             } else {
-                reject(new Error(response.error || 'Unknown error in proxy fetch'));
+                reject(new Error(response.error || "Unknown error in proxy fetch"));
             }
         });
     });
@@ -163,13 +163,13 @@ function proxyFetch(url, options = {}) {
 
 async function addUnifiedPRView(taskName) {
     try {
-        console.log('Starting to add unified PR view for task:', taskName);
+        console.log("Starting to add unified PR view for task:", taskName);
         
         // Get settings from storage
-        const { backendUrl, repoUrls, gitlabToken, username } = await chrome.storage.sync.get(['backendUrl', 'repoUrls', 'gitlabToken', 'username']);
+        const { backendUrl, repoUrls, gitlabToken, username } = await chrome.storage.sync.get(["backendUrl", "repoUrls", "gitlabToken", "username"]);
         
         if (!backendUrl || !repoUrls || !gitlabToken || !username) {
-            console.error('Missing required settings:', {
+            console.error("Missing required settings:", {
                 hasBackendUrl: !!backendUrl,
                 hasRepoUrls: !!repoUrls,
                 hasGitlabToken: !!gitlabToken,
@@ -178,20 +178,20 @@ async function addUnifiedPRView(taskName) {
             return;
         }
 
-        console.log('All settings present, proceeding with fetch');
+        console.log("All settings present, proceeding with fetch");
 
         // Convert newline-separated URLs to array and encode them
-        const urls = repoUrls.split('\n')
+        const urls = repoUrls.split("\n")
             .filter(url => url.trim())
             .map(url => encodeURIComponent(url));
         
         // Join URLs with '&repo_urls=' to create the query string, use the proxy fetch instead of direct fetch
-        const queryString = urls.map(url => `repo_urls=${url}`).join('&');
+        const queryString = urls.map(url => `repo_urls=${url}`).join("&");
         const apiUrl = `${backendUrl}/api/prs/unified?${queryString}`;
         
-        console.log('Fetching unified PRs using proxy from:', apiUrl);
+        console.log("Fetching unified PRs using proxy from:", apiUrl);
         const unifiedPRs = await proxyFetch(apiUrl);
-        console.log('Received unified PRs data:', unifiedPRs);
+        console.log("Received unified PRs data:", unifiedPRs);
         
         // Deduplicate PRs within each task based on web_url
         const dedupedPRs = unifiedPRs.map(task => {
@@ -214,11 +214,11 @@ async function addUnifiedPRView(taskName) {
         // Find the task with matching name
         const taskPRs = dedupedPRs.find(task => task.task_name === taskName);
         if (!taskPRs) {
-            console.error('No PRs found for task:', taskName);
+            console.error("No PRs found for task:", taskName);
             return;
         }
 
-        console.log('Found matching task:', taskPRs);
+        console.log("Found matching task:", taskPRs);
 
         // For each PR, check approval status
         const prsWithApproval = [];
@@ -232,7 +232,7 @@ async function addUnifiedPRView(taskName) {
                     isApproved: approvalStatus
                 });
             } catch (err) {
-                console.error('Error checking approval for PR:', pr.web_url, err);
+                console.error("Error checking approval for PR:", pr.web_url, err);
                 prsWithApproval.push({
                     ...pr,
                     isApproved: false
@@ -241,12 +241,12 @@ async function addUnifiedPRView(taskName) {
         }
 
         const taskWithApproval = { ...taskPRs, prs: prsWithApproval };
-        console.log('Task with approval status:', taskWithApproval);
+        console.log("Task with approval status:", taskWithApproval);
         
         // Create and inject the unified view
         const unifiedView = createUnifiedView(taskWithApproval);
         await injectUnifiedView(unifiedView);
-        console.log('Unified view successfully injected');
+        console.log("Unified view successfully injected");
 
         // Set up periodic refresh of approval status
         setInterval(async () => {
@@ -261,7 +261,7 @@ async function addUnifiedPRView(taskName) {
                             isApproved: approvalStatus
                         });
                     } catch (err) {
-                        console.error('Error in refresh approval check:', err);
+                        console.error("Error in refresh approval check:", err);
                         updatedPrsWithApproval.push({
                             ...pr,
                             isApproved: false
@@ -272,17 +272,17 @@ async function addUnifiedPRView(taskName) {
                 const updatedTaskWithApproval = { ...taskPRs, prs: updatedPrsWithApproval };
                 const updatedView = createUnifiedView(updatedTaskWithApproval);
                 
-                const existingView = document.querySelector('.unified-pr-view');
+                const existingView = document.querySelector(".unified-pr-view");
                 if (existingView) {
                     existingView.replaceWith(updatedView);
-                    console.log('Unified view refreshed successfully');
+                    console.log("Unified view refreshed successfully");
                 }
             } catch (error) {
-                console.error('Error during periodic refresh:', error);
+                console.error("Error during periodic refresh:", error);
             }
         }, 30000); // Refresh every 30 seconds
     } catch (error) {
-        console.error('Error adding unified PR view:', error);
+        console.error("Error adding unified PR view:", error);
     }
 }
 
@@ -291,16 +291,16 @@ async function checkPRApprovalStatus(prUrl) {
         // Extract project and MR ID from URL
         const match = prUrl.match(/gitlab\.com\/([^/]+(?:\/[^/]+)*?)\/\-\/merge_requests\/(\d+)/);
         if (!match) {
-            console.error('Could not extract project path and MR ID from URL:', prUrl);
+            console.error("Could not extract project path and MR ID from URL:", prUrl);
             return false;
         }
 
         const [_, projectPath, mrId] = match;
         
         // Get GitLab token and username from storage
-        const { gitlabToken, username } = await chrome.storage.sync.get(['gitlabToken', 'username']);
+        const { gitlabToken, username } = await chrome.storage.sync.get(["gitlabToken", "username"]);
         if (!gitlabToken || !username) {
-            console.error('Missing GitLab token or username');
+            console.error("Missing GitLab token or username");
             return false;
         }
 
@@ -309,7 +309,7 @@ async function checkPRApprovalStatus(prUrl) {
             // First, get the project ID using proxy fetch
             const projectData = await proxyFetch(`https://gitlab.com/api/v4/projects/${encodeURIComponent(projectPath)}`, {
                 headers: {
-                    'Authorization': `Bearer ${gitlabToken}`
+                    "Authorization": `Bearer ${gitlabToken}`
                 }
             });
 
@@ -318,7 +318,7 @@ async function checkPRApprovalStatus(prUrl) {
             // Now fetch the MR approvals using proxy fetch
             const approvalData = await proxyFetch(`https://gitlab.com/api/v4/projects/${projectId}/merge_requests/${mrId}/approvals`, {
                 headers: {
-                    'Authorization': `Bearer ${gitlabToken}`
+                    "Authorization": `Bearer ${gitlabToken}`
                 }
             });
 
@@ -336,41 +336,41 @@ async function checkPRApprovalStatus(prUrl) {
             }
             return false;
         } catch (error) {
-            console.error('Error in proxy fetch for approval status:', error);
+            console.error("Error in proxy fetch for approval status:", error);
             return false;
         }
     } catch (error) {
-        console.error('Error checking PR approval status:', error);
+        console.error("Error checking PR approval status:", error);
         return false;
     }
 }
 
 async function approveAllPRs(taskName) {
     try {
-        const { backendUrl, repoUrls } = await chrome.storage.sync.get(['backendUrl', 'repoUrls']);
+        const { backendUrl, repoUrls } = await chrome.storage.sync.get(["backendUrl", "repoUrls"]);
         
         if (!backendUrl || !repoUrls) {
-            console.error('Missing required settings');
+            console.error("Missing required settings");
             return;
         }
 
-        const urls = repoUrls.split('\n').filter(url => url.trim());
+        const urls = repoUrls.split("\n").filter(url => url.trim());
         
         // Use proxy fetch for approval
         const approveResponse = await proxyFetch(`${backendUrl}/api/prs/approve?task_name=${encodeURIComponent(taskName)}`, {
-            method: 'POST',
+            method: "POST",
             headers: {
-                'Content-Type': 'application/json',
+                "Content-Type": "application/json",
             },
             body: JSON.stringify({
                 repo_urls: urls
             })
         });
         
-        console.log('Approve response:', approveResponse);
+        console.log("Approve response:", approveResponse);
 
         // Show success message
-        const unifiedView = document.querySelector('.unified-pr-view');
+        const unifiedView = document.querySelector(".unified-pr-view");
         if (unifiedView) {
             unifiedView.innerHTML = `
                 <div class="unified-pr-header">
@@ -388,7 +388,7 @@ async function approveAllPRs(taskName) {
         await new Promise(resolve => setTimeout(resolve, 4000));
         
         // Instead of reloading the page, update the view with new data
-        const queryString = urls.map(url => `repo_urls=${encodeURIComponent(url)}`).join('&');
+        const queryString = urls.map(url => `repo_urls=${encodeURIComponent(url)}`).join("&");
         try {
             const unifiedPRs = await proxyFetch(`${backendUrl}/api/prs/unified?${queryString}`);
             const taskPRs = unifiedPRs.find(task => task.task_name === taskName);
@@ -405,7 +405,7 @@ async function approveAllPRs(taskName) {
                             isApproved: approvalStatus
                         });
                     } catch (err) {
-                        console.error('Error checking approval after approve all:', err);
+                        console.error("Error checking approval after approve all:", err);
                         prsWithApproval.push({
                             ...pr,
                             isApproved: false
@@ -422,7 +422,7 @@ async function approveAllPRs(taskName) {
                 }
             }
         } catch (error) {
-            console.error('Error refreshing PRs after approval:', error);
+            console.error("Error refreshing PRs after approval:", error);
             if (unifiedView) {
                 unifiedView.innerHTML += `
                     <div class="unified-pr-message warning">
@@ -432,8 +432,8 @@ async function approveAllPRs(taskName) {
             }
         }
     } catch (error) {
-        console.error('Error approving PRs:', error);
-        const unifiedView = document.querySelector('.unified-pr-view');
+        console.error("Error approving PRs:", error);
+        const unifiedView = document.querySelector(".unified-pr-view");
         if (unifiedView) {
             unifiedView.innerHTML = `
                 <div class="unified-pr-header">
@@ -450,12 +450,12 @@ async function approveAllPRs(taskName) {
 }
 
 function createUnifiedView(taskPRs) {
-    const container = document.createElement('div');
-    container.className = 'unified-pr-view';
+    const container = document.createElement("div");
+    container.className = "unified-pr-view";
     
     // Create header
-    const header = document.createElement('div');
-    header.className = 'unified-pr-header';
+    const header = document.createElement("div");
+    header.className = "unified-pr-header";
     header.innerHTML = `
         <h3>Related Merge Requests</h3>
         <div class="task-name">Task: ${taskPRs.task_name}</div>
@@ -463,26 +463,26 @@ function createUnifiedView(taskPRs) {
     container.appendChild(header);
 
     // Create PR list
-    const prList = document.createElement('div');
-    prList.className = 'unified-pr-list';
+    const prList = document.createElement("div");
+    prList.className = "unified-pr-list";
     
     // Check if all PRs are approved
     const allApproved = taskPRs.prs.every(pr => pr.isApproved);
 
     // Add PR items
     taskPRs.prs.forEach(pr => {
-        const prItem = document.createElement('div');
-        prItem.className = `pr-item ${pr.isApproved ? 'approved' : ''}`;
+        const prItem = document.createElement("div");
+        prItem.className = `pr-item ${pr.isApproved ? "approved" : ""}`;
         prItem.innerHTML = `
-            <a href="${pr.web_url}" target="_blank" title="${pr.title || 'No title'}">
+            <a href="${pr.web_url}" target="_blank" title="${pr.title || "No title"}">
                 <div class="pr-item-content">
-                    <span class="pr-title">${pr.title || 'No title'}</span>
+                    <span class="pr-title">${pr.title || "No title"}</span>
                     <span class="pr-repo-info">${pr.repository_name} #${pr.iid}</span>
                 </div>
             </a>
             ${pr.isApproved ? 
-                '<span class="approval-status"><i class="checkmark">&#10003;</i> Approved</span>' : 
-                '<span class="approval-status pending">Not approved</span>'
+                "<span class=\"approval-status\"><i class=\"checkmark\">&#10003;</i> Approved</span>" : 
+                "<span class=\"approval-status pending\">Not approved</span>"
             }
         `;
         prList.appendChild(prItem);
@@ -492,15 +492,15 @@ function createUnifiedView(taskPRs) {
 
     // Add approve button or approved status
     if (!allApproved) {
-        const approveButton = document.createElement('button');
-        approveButton.className = 'approve-all-btn';
-        approveButton.textContent = 'Approve All';
+        const approveButton = document.createElement("button");
+        approveButton.className = "approve-all-btn";
+        approveButton.textContent = "Approve All";
         approveButton.onclick = () => approveAllPRs(taskPRs.task_name);
         container.appendChild(approveButton);
     } else {
-        const approvedStatus = document.createElement('div');
-        approvedStatus.className = 'status approved';
-        approvedStatus.textContent = 'All PRs Approved';
+        const approvedStatus = document.createElement("div");
+        approvedStatus.className = "status approved";
+        approvedStatus.textContent = "All PRs Approved";
         container.appendChild(approvedStatus);
     }
 
@@ -510,17 +510,17 @@ function createUnifiedView(taskPRs) {
 async function injectUnifiedView(view) {
     // Try multiple possible injection points
     const injectionPoints = [
-        '.merge-request-description',
-        '.detail-page-description',
-        '.merge-request-details',
-        '.merge-request-info',
-        '.description',
-        '.issuable-details',
-        '.detail-page-header',
-        '.merge-request'
+        ".merge-request-description",
+        ".detail-page-description",
+        ".merge-request-details",
+        ".merge-request-info",
+        ".description",
+        ".issuable-details",
+        ".detail-page-header",
+        ".merge-request"
     ];
     
-    console.log('Attempting to inject unified view, searching for injection points...');
+    console.log("Attempting to inject unified view, searching for injection points...");
     
     let injectionPoint = null;
     for (const selector of injectionPoints) {
@@ -529,44 +529,44 @@ async function injectUnifiedView(view) {
         
         if (elements.length > 0) {
             injectionPoint = elements[0];
-            console.log('Found injection point:', {
+            console.log("Found injection point:", {
                 selector,
-                element: injectionPoint.outerHTML.substring(0, 100) + '...'
+                element: injectionPoint.outerHTML.substring(0, 100) + "..."
             });
             break;
         }
     }
     
     if (!injectionPoint) {
-        console.error('Could not find injection point, using body as fallback');
+        console.error("Could not find injection point, using body as fallback");
         // Use body as a fallback
-        const container = document.createElement('div');
-        container.className = 'unified-pr-view-container';
+        const container = document.createElement("div");
+        container.className = "unified-pr-view-container";
         container.appendChild(view);
         document.body.prepend(container);
         return;
     }
 
     // Remove existing unified view if present
-    const existingView = document.querySelector('.unified-pr-view');
+    const existingView = document.querySelector(".unified-pr-view");
     if (existingView) {
-        console.log('Removing existing unified view');
+        console.log("Removing existing unified view");
         existingView.remove();
     }
 
     // Insert the unified view after the injection point
-    console.log('Injecting unified view after:', injectionPoint);
+    console.log("Injecting unified view after:", injectionPoint);
     injectionPoint.parentNode.insertBefore(view, injectionPoint.nextSibling);
 }
 
 // Ensure the CSS file is loaded
 function loadCSS(path) {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.type = 'text/css';
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.type = "text/css";
     link.href = chrome.runtime.getURL(path);
     document.head.appendChild(link);
 }
 
 // Load the external CSS file
-loadCSS('content/content.css');
+loadCSS("content/content.css");
