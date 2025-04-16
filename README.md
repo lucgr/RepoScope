@@ -7,27 +7,47 @@ A Chrome extension for viewing and managing related Pull Requests across multipl
 - View all PRs related to the same task across repositories
 - Approve multiple PRs with a single click
 - See which PRs have been approved at a glance
+- Monitor pipeline status for all related PRs
+- Create virtual workspaces for easier multi-repository development
 - Integrated directly into GitLab's merge request pages
 
 ## Screenshots
 
 ### Extension Popup
 
-The main extension popup allows you to configure settings and view all related PRs:
+#### Settings Tab
+Configure your GitLab API token, backend URL, and repositories to monitor:
 
-![Extension Popup](images/popup_1.png)
+![Settings Tab](images/unified-settings-tab.png)
 
-All PRs related to the same task are grouped together, making it easy to track progress:
+#### Unified PRs Tab
+View all PRs grouped by task, with approval and pipeline status:
 
-![Unified PR List](images/popup_2.png)
+![Unified PRs Tab](images/unified-PR-tab.png)
+
+#### Virtual Workspace Tab
+Create virtual workspaces that combine multiple repositories for easier development:
+
+![Virtual Workspace Tab](images/unified-new-workspace.png)
+![Virtual Workspace Tab 2](images/unified-workspace-tab.png)
 
 ### Integrated View in GitLab
 
-When viewing a merge request in GitLab, related PRs are displayed directly on the page, and you can easily approve all related PRs with a single click:
+When viewing a merge request in GitLab, related PRs are displayed directly on the page:
 
-![Integrated View](images/missing_approvals.png)
-![Approve PRs](images/all_approved.png)
+![Injected View](images/unified-injected-view.png)
 
+You can see approval status for all related PRs:
+
+![Missing Approvals](images/missing_approvals.png)
+
+And approve all related PRs with a single click:
+
+![All Approved](images/all_approved.png)
+
+You can also monitor pipeline status for all related PRs:
+
+![Pipeline Status](images/pipeline_status.png)
 
 ## Setup
 
@@ -62,6 +82,8 @@ This extension uses:
 3. The backend fetches all PRs from configured repositories
 4. The extension displays related PRs (with the same task name) directly in GitLab
 5. You can approve all related PRs with a single click
+6. Pipeline status is monitored for all related PRs
+7. Virtual workspaces can be created for multi-repository development
 
 ## License
 
