@@ -31,3 +31,14 @@ class UnifiedPR(BaseModel):
     total_changes: int
     total_comments: int
     status: str  # 'open', 'merged', 'closed'
+
+class VirtualWorkspaceRequest(BaseModel):
+    branch_name: str
+    task_name: str
+    repo_urls: List[str]
+
+class VirtualWorkspaceResponse(BaseModel):
+    status: str
+    message: str
+    clone_url: Optional[str] = None
+    clone_command: Optional[str] = None

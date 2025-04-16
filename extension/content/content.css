@@ -97,11 +97,19 @@
 }
 
 .approval-status.pending {
-    background: var(--gray-50, #f0f0f0);
-    color: var(--gl-text-secondary, #666);
+    background: #f0f0f0;
+    color: #666;
+    border: 1px solid #ddd;
 }
 
 .pr-item .approval-status {
+    background: var(--green-50, #f0faf5);
+    color: var(--green-600, #1aaa55);
+    border: 1px solid var(--green-200, #cbe2d1);
+}
+
+/* Add a more specific selector for approved badges */
+.pr-item.approved .approval-status {
     background: var(--green-50, #f0faf5);
     color: var(--green-600, #1aaa55);
     border: 1px solid var(--green-200, #cbe2d1);

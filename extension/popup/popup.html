@@ -8,7 +8,14 @@
     <div class="container">
         <h1>Unified <span style="color: #27AE60;">PR</span> Viewer</h1>
         
-        <div class="settings-section">
+        <!-- Tab Navigation -->
+        <div class="tab-navigation">
+            <button class="tab-button active" data-tab="settings-section">Settings</button>
+            <button class="tab-button" data-tab="unified-prs-section">Unified PRs</button>
+            <button class="tab-button" data-tab="virtual-workspace-section">Virtual Workspace</button>
+        </div>
+        
+        <div class="settings-section tab-section active" id="settings-section">
             <h2>Settings</h2>
             <div class="form-group">
                 <label for="backend-url">Backend URL:</label>
@@ -45,10 +52,51 @@
             <button id="save-settings">Save Settings</button>
         </div>
 
-        <div class="unified-prs-section">
+        <div class="unified-prs-section tab-section" id="unified-prs-section">
             <h2>Unified PRs</h2>
-            <div id="unified-prs-list">
+            <div class="action-buttons">
+                <button id="refresh-prs-btn">Refresh PRs</button>
+            </div>
+            <div id="unified-prs-content">
                 <!-- Unified PRs will be loaded here -->
+            </div>
+        </div>
+        
+        <div class="virtual-workspace-section tab-section" id="virtual-workspace-section">
+            <h2>Create Virtual Workspace</h2>
+            <div class="form-group">
+                <label for="workspace-branch-name">Branch Name:</label>
+                <input type="text" id="workspace-branch-name" placeholder="feature/ABC-123">
+                <div class="help-text">Enter a branch name (including task name, e.g., feature/ABC-123)</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="workspace-task-name">Task Name:</label>
+                <input type="text" id="workspace-task-name" placeholder="ABC-123" readonly>
+                <div class="help-text">Task name will be extracted automatically from the branch name</div>
+            </div>
+            
+            <div class="form-group">
+                <label>Select Repositories:</label>
+                <div id="workspace-repo-selection">
+                    <!-- Repository checkboxes will be populated here -->
+                </div>
+                <div class="empty-state" id="empty-workspace-repos">
+                    No repositories available. Add repositories in the Settings tab.
+                </div>
+            </div>
+            
+            <button id="create-workspace-btn">Create Virtual Workspace</button>
+            
+            <div id="workspace-result" class="form-group" style="display: none;">
+                <h3>Workspace Created</h3>
+                <div class="clone-command-container">
+                    <label>Clone Command:</label>
+                    <div class="clone-command-box">
+                        <code id="clone-command"></code>
+                        <button id="copy-clone-command" class="copy-btn" title="Copy to clipboard">Copy</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

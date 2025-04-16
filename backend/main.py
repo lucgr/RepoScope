@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api.pr_routes import router as pr_router
+from .api.workspace_routes import router as workspace_router
 import logging
 
 # Configure logging
@@ -22,6 +23,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(pr_router)
+app.include_router(workspace_router)
 
 @app.get("/")
 async def root():
