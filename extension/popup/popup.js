@@ -1450,7 +1450,13 @@ function createVirtualWorkspace() {
                         
                         const codeStyle = 'background-color: #f1f1f1; padding: 2px 5px; border-radius: 3px; font-family: monospace;';
                         
-                        noteEl.innerHTML = '<strong>Note:</strong> A helper script has been added to the workspace that can commit changes across all submodules. Use <span style="' + codeStyle + '">./commit-submodules.sh "Your commit message"</span> to commit changes.';
+                        noteEl.innerHTML = '<strong>Note:</strong> Helper scripts have been added to the workspace:<br><br>' +
+                            '* <span style="' + codeStyle + '">./multi-repo.sh commit "Your message"</span> - Commit changes in all repositories<br>' +
+                            '* <span style="' + codeStyle + '">./multi-repo.sh push</span> - Push all committed changes<br>' +
+                            '* <span style="' + codeStyle + '">./multi-repo.sh pull</span> - Pull changes for all repositories<br>' +
+                            '* <span style="' + codeStyle + '">./multi-repo.sh status</span> - Show status of all repositories<br>' +
+                            '* <span style="' + codeStyle + '">./multi-repo.sh pr "Your PR title"</span> - Commit changes and create PRs<br>' +
+                            '* <span style="' + codeStyle + '">./multi-repo.sh help</span> - See all available commands';
                         
                         // Only add if it doesn't exist yet
                         if (!document.querySelector('.helper-script-note')) {

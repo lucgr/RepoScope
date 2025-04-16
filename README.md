@@ -39,6 +39,33 @@ When viewing a merge request in GitLab, related PRs are displayed directly on th
 
 You can see approval status for all related PRs, approve all related PRs with a single click, and monitor pipeline status for all related PRs.
 
+## Virtual Workspace
+
+The virtual workspace feature creates a unified repository with submodules for each selected repository. It includes helper scripts to manage multiple repositories at once:
+
+```bash
+# Commit changes across all repositories
+./multi-repo commit "Your commit message"
+
+# Push changes to all repositories
+./multi-repo push
+
+# Pull latest changes for all repositories
+./multi-repo pull
+
+# Check status of all repositories
+./multi-repo status
+
+# Create or checkout branches across all repositories
+./multi-repo branch <branch-name>
+./multi-repo checkout <branch-name>
+
+# Commit all changes and create pull requests for all repositories
+./multi-repo pr "Your PR title"
+```
+
+The PR creation command automatically commits all changes in all submodules, pushes them to the remote repositories, and creates pull requests from the current branches to the target branch (default: main). The command will prompt for a commit message (used for both the commit and PR description) and additional information, and supports both GitLab and GitHub repositories.
+
 ## Setup
 
 1. Install the extension from the Chrome Web Store (or load unpacked for development)

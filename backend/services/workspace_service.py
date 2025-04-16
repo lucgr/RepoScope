@@ -125,40 +125,24 @@ class WorkspaceService:
             repo_name = repo_url.split("/")[-1].replace(".git", "")
             readme_content += f"- [{repo_name}]({repo_url})\n"
         
+        readme_content += "\n## Usage\n\n"
+        readme_content += "This workspace includes helper scripts for working with multiple repositories:\n\n"
+        readme_content += "- `./multi-repo.sh commit \"Your commit message\"` - Commit changes across all repositories\n"
+        readme_content += "- `./multi-repo.sh push` - Push all committed changes\n"
+        readme_content += "- `./multi-repo.sh pull` - Pull changes for all repositories\n"
+        readme_content += "- `./multi-repo.sh status` - Show status of all repositories\n"
+        readme_content += "- `./multi-repo.sh branch <branch-name>` - Create a new branch in all repositories\n"
+        readme_content += "- `./multi-repo.sh checkout <branch-name>` - Checkout the specified branch in all repositories\n"
+        
         readme_path = os.path.join(workspace_dir, "README.md")
         with open(readme_path, "w") as f:
             f.write(readme_content)
         
-        # Create the commit-submodules.sh script
-        # Try to use the template file first, fall back to provided script_content if template not found
-        script_path = os.path.join(workspace_dir, "commit-submodules.sh")
-        template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates", "commit-submodules.sh")
+        # Create the commit-submodules.sh script from template or content
+        self._create_script_from_template(workspace_dir, "commit-submodules.sh", script_content)
         
-        if os.path.exists(template_path):
-            # Use the template file
-            try:
-                with open(template_path, "r") as src, open(script_path, "w") as dst:
-                    dst.write(src.read())
-                logger.info(f"Created commit-submodules.sh script from template")
-            except Exception as e:
-                logger.error(f"Failed to create commit script from template: {str(e)}")
-                
-                # Fall back to script_content if provided
-                if script_content:
-                    with open(script_path, "w") as f:
-                        f.write(script_content)
-                    logger.info(f"Created commit-submodules.sh script from provided content")
-        elif script_content:
-            # Use provided script content
-            with open(script_path, "w") as f:
-                f.write(script_content)
-            logger.info(f"Created commit-submodules.sh script from provided content")
-        else:
-            logger.warning(f"No template or script content available for commit-submodules.sh")
-        
-        # Make the script executable if it was created
-        if os.path.exists(script_path):
-            os.chmod(script_path, 0o755)
+        # Create the multi-repo.sh script
+        self._create_script_from_template(workspace_dir, "multi-repo.sh")
             
         # Commit the changes
         success, _ = self._run_git_command(["git", "add", "."], cwd=workspace_dir)
@@ -187,4 +171,40 @@ class WorkspaceService:
             message=f"Virtual workspace created successfully for {task_name}",
             clone_url=clone_url,
             clone_command=clone_command
-        ) 
+        )
+        
+    def _create_script_from_template(self, workspace_dir: str, script_name: str, script_content: str = None) -> bool:
+        """Create a script file from template or provided content and make it executable.
+        
+        Args:
+            workspace_dir: Directory where the script should be created
+            script_name: Name of the script file to create
+            script_content: Optional content to use instead of template
+            
+        Returns:
+            bool: True if script was created successfully, False otherwise
+        """
+        script_path = os.path.join(workspace_dir, script_name)
+        template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates", script_name)
+        
+        try:
+            if os.path.exists(template_path):
+                # Use the template file
+                with open(template_path, "r") as src, open(script_path, "w") as dst:
+                    dst.write(src.read())
+                logger.info(f"Created {script_name} script from template")
+            elif script_content:
+                # Use provided script content
+                with open(script_path, "w") as f:
+                    f.write(script_content)
+                logger.info(f"Created {script_name} script from provided content")
+            else:
+                logger.warning(f"No template or script content available for {script_name}")
+                return False
+            
+            # Make the script executable
+            os.chmod(script_path, 0o755)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to create {script_name} script: {str(e)}")
+            return False 
