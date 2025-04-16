@@ -40,6 +40,22 @@ class PRService:
             logger.error(f"Error getting project from URL {repo_url}: {str(e)}")
             raise ValueError(f"Repository not found: {repo_url}")
 
+    def get_pipeline_status(self, project, mr_iid):
+        """Get the latest pipeline status for a merge request."""
+        try:
+            mr = project.mergerequests.get(mr_iid)
+            pipelines = mr.pipelines.list()
+            
+            if pipelines and len(pipelines) > 0:
+                # Get the most recent pipeline
+                latest_pipeline = pipelines[0]
+                return latest_pipeline.status
+            
+            return None
+        except Exception as e:
+            logger.error(f"Error getting pipeline status for MR {mr_iid}: {str(e)}")
+            return None
+
     def fetch_prs(self, repo_urls: List[str]) -> List[PR]:
         """Fetch PRs from multiple GitLab repositories."""
         all_prs = []
@@ -52,6 +68,7 @@ class PRService:
                 
                 for mr in merge_requests:
                     task_name = self.extract_task_name(mr.source_branch)
+                    pipeline_status = self.get_pipeline_status(project, mr.iid)
                     
                     pr = PR(
                         id=mr.id,
@@ -69,7 +86,8 @@ class PRService:
                         author=mr.author,
                         assignees=mr.assignees,
                         labels=mr.labels,
-                        task_name=task_name
+                        task_name=task_name,
+                        pipeline_status=pipeline_status
                     )
                     all_prs.append(pr)
             except Exception as e:

@@ -21,6 +21,7 @@ class PR(PRBase):
     assignees: List[dict]
     labels: List[str]
     task_name: Optional[str] = None
+    pipeline_status: Optional[str] = None  # "success", "failed", "running", "pending", or None
 
 class UnifiedPR(BaseModel):
     task_name: str

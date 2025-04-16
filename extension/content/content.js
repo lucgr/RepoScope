@@ -288,6 +288,82 @@ async function checkPRApprovalStatus(prUrl) {
     }
 }
 
+async function checkPRPipelineStatus(prUrl) {
+    try {
+        // Extract project and MR ID from URL
+        const match = prUrl.match(/gitlab\.com\/([^/]+(?:\/[^/]+)*?)\/\-\/merge_requests\/(\d+)/);
+        if (!match) {
+            console.error('Could not extract project path and MR ID from URL:', prUrl);
+            return null;
+        }
+
+        const [_, projectPath, mrId] = match;
+        
+        // Get GitLab token
+        const { gitlabToken } = await chrome.storage.sync.get(['gitlabToken']);
+        if (!gitlabToken) {
+            console.error('Missing GitLab token');
+            return null;
+        }
+
+        // First, get the project ID
+        const projectResponse = await fetch(`https://gitlab.com/api/v4/projects/${encodeURIComponent(projectPath)}`, {
+            headers: {
+                'Authorization': `Bearer ${gitlabToken}`
+            }
+        });
+
+        if (!projectResponse.ok) {
+            console.error('Failed to fetch project info:', projectResponse.status);
+            return null;
+        }
+
+        const projectData = await projectResponse.json();
+        const projectId = projectData.id;
+
+        // Now fetch the MR pipelines
+        const pipelinesResponse = await fetch(`https://gitlab.com/api/v4/projects/${projectId}/merge_requests/${mrId}/pipelines`, {
+            headers: {
+                'Authorization': `Bearer ${gitlabToken}`
+            }
+        });
+
+        if (!pipelinesResponse.ok) {
+            console.error('Failed to fetch pipeline status:', pipelinesResponse.status);
+            return null;
+        }
+
+        const pipelines = await pipelinesResponse.json();
+        
+        // Return the status of the latest pipeline, if any
+        if (pipelines && pipelines.length > 0) {
+            return pipelines[0].status;
+        }
+        
+        return null;
+    } catch (error) {
+        console.error('Error checking PR pipeline status:', error);
+        return null;
+    }
+}
+
+// Function to get pipeline status emoji
+function getPipelineStatusEmoji(status) {
+    if (!status) return '<span class="pipeline-status no-pipeline">No pipelines</span>';
+    
+    switch (status) {
+        case 'success':
+            return '<span class="pipeline-status success">Pipeline Success ✅</span>';
+        case 'failed':
+            return '<span class="pipeline-status failed">Pipeline Failed ❌</span>';
+        case 'running':
+        case 'pending':
+            return '<span class="pipeline-status running">Pipeline Running ⏳</span>';
+        default:
+            return '<span class="pipeline-status unknown">' + status + '</span>';
+    }
+}
+
 function createUnifiedView(taskPRs) {
     const container = document.createElement('div');
     container.className = 'unified-pr-view';
@@ -314,10 +390,13 @@ function createUnifiedView(taskPRs) {
         prItem.className = `pr-item ${pr.isApproved ? 'approved' : ''}`;
         prItem.innerHTML = `
             <a href="${pr.web_url}" target="_blank">${pr.repository_name} #${pr.iid}</a>
-            ${pr.isApproved ? 
-                '<span class="approval-status"><i class="checkmark">&#10003;</i> Approved</span>' : 
-                '<span class="approval-status pending">Not approved</span>'
-            }
+            <div class="status-badges">
+                ${getPipelineStatusEmoji(pr.pipeline_status)}
+                ${pr.isApproved ? 
+                    '<span class="approval-status"><i class="checkmark">&#10003;</i> Approved</span>' : 
+                    '<span class="approval-status pending">Not approved</span>'
+                }
+            </div>
         `;
         prList.appendChild(prItem);
     });
@@ -427,16 +506,27 @@ async function approveAllPRs(taskName) {
                 const taskPRs = unifiedPRs.find(task => task.task_name === taskName);
                 
                 if (taskPRs) {
-                    // Check approval status for each PR
-                    const prsWithApproval = await Promise.all(taskPRs.prs.map(async (pr) => {
+                    // Check approval status for each PR and pipeline status if needed
+                    const prsWithStatus = await Promise.all(taskPRs.prs.map(async (pr) => {
                         const approvalStatus = await checkPRApprovalStatus(pr.web_url);
-                        return { ...pr, isApproved: approvalStatus };
+                        
+                        // Check pipeline status if not available
+                        let pipelineStatus = pr.pipeline_status;
+                        if (!pipelineStatus) {
+                            pipelineStatus = await checkPRPipelineStatus(pr.web_url);
+                        }
+                        
+                        return { 
+                            ...pr, 
+                            isApproved: approvalStatus,
+                            pipeline_status: pipelineStatus 
+                        };
                     }));
 
-                    const taskWithApproval = { ...taskPRs, prs: prsWithApproval };
+                    const taskWithStatus = { ...taskPRs, prs: prsWithStatus };
                     
                     // Create and inject the updated view
-                    const updatedView = createUnifiedView(taskWithApproval);
+                    const updatedView = createUnifiedView(taskWithStatus);
                     if (unifiedView) {
                         unifiedView.replaceWith(updatedView);
                     }

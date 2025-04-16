@@ -119,4 +119,44 @@
 .unified-pr-message.error {
     background: #ffebee;
     color: #c62828;
+}
+
+.status-badges {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pipeline-status {
+    display: inline-block;
+    margin-right: 4px;
+    font-size: 14px;
+}
+
+.pipeline-status.success {
+    color: #2e7d32;
+}
+
+.pipeline-status.failed {
+    color: #c62828;
+}
+
+.pipeline-status.running {
+    color: #1976d2;
+}
+
+.pipeline-status.no-pipeline {
+    color: #888;
+    font-size: 12px;
+    background: #f0f0f0;
+    border-radius: 12px;
+    padding: 2px 6px;
+}
+
+.pipeline-status.unknown {
+    color: #888;
+    font-size: 12px;
+    background: #f0f0f0;
+    border-radius: 12px;
+    padding: 2px 6px;
 } 
