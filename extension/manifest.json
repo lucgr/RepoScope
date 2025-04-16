@@ -22,7 +22,7 @@
   "content_scripts": [
     {
       "matches": ["*://*.gitlab.com/*/-/merge_requests/*"],
-      "js": ["content/content.js"],
+      "js": ["content/inject-styles.js", "content/content.js"],
       "css": ["content/content.css"]
     }
   ],

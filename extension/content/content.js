@@ -425,14 +425,14 @@ function getPipelineStatusEmoji(status) {
     
     switch (status) {
         case "success":
-            return "<span class=\"pipeline-status success\">✅ Pipeline(s) Succeeded</span>";
+            return "<span class=\"pipeline-status success\"><i class=\"material-icons\">check_circle</i> Pipeline succeeded</span>";
         case "failed":
-            return "<span class=\"pipeline-status failed\">❌ Pipeline(s) Failed</span>";
+            return "<span class=\"pipeline-status failed\"><i class=\"material-icons\">error</i> Pipeline failed</span>";
         case "running":
         case "pending":
-            return "<span class=\"pipeline-status running\">⌛ Pipeline(s) Running</span>";
+            return "<span class=\"pipeline-status running\"><i class=\"material-icons\">sync</i> Pipeline running</span>";
         default:
-            return "<span class=\"pipeline-status unknown\">" + status + "</span>";
+            return "<span class=\"pipeline-status unknown\"><i class=\"material-icons\">help</i> " + status + "</span>";
     }
 }
 
@@ -465,7 +465,7 @@ function createUnifiedView(taskPRs) {
             <div class="status-badges">
                 ${getPipelineStatusEmoji(pr.pipeline_status)}
                 ${pr.isApproved ? 
-                    "<span class=\"approval-status\"><i class=\"checkmark\">&#10003;</i> Approved</span>" : 
+                    "<span class=\"approval-status\">Approved</span>" : 
                     "<span class=\"approval-status pending\">Not approved</span>"
                 }
             </div>
@@ -475,7 +475,7 @@ function createUnifiedView(taskPRs) {
     
     container.appendChild(prList);
 
-    // Add approve button or approved status
+    // Add approve button only if there are PRs to approve
     if (!allApproved) {
         const approveButton = document.createElement("button");
         approveButton.className = "approve-all-btn";

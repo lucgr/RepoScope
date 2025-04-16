@@ -210,30 +210,48 @@ button:hover {
     text-decoration: underline;
 }
 
-.approval-status {
-    display: inline-flex;
+.pr-actions {
+    display: flex;
     align-items: center;
-    padding: 2px 8px;
-    border-radius: 12px;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.approval-status {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
     font-size: 12px;
-    margin-left: 8px;
+    margin-right: 0;
+    text-align: center;
+    white-space: nowrap;
 }
 
-.approval-status .checkmark {
-    font-style: normal;
-    margin-right: 4px;
-    font-weight: bold;
-}
-
-.approval-status.pending {
-    background: #f0f0f0;
-    color: #666;
-}
-
-.pr-item .approval-status {
-    background: #f3f9f4;
+.approval-status.approved {
+    background-color: #f3f9f4;
     color: #1aaa55;
     border: 1px solid #97d3a0;
+}
+
+.approval-status.not-approved {
+    background-color: #f5f5f5;
+    color: #666;
+    border: 1px solid #ddd;
+}
+
+.approve-btn {
+    background: #1aaa55;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.approve-btn:hover {
+    background: #168f48;
 }
 
 .approve-all-btn {
@@ -430,47 +448,63 @@ textarea {
 
 .pipeline-status {
     display: inline-block;
-    margin-right: 4px;
+    margin-right: 8px;
     font-size: 14px;
+    width: 20px;
+    height: 20px;
+    text-align: center;
+    line-height: 20px;
+    border-radius: 50%;
 }
 
-.pipeline-status.success {
+/* Simple Pipeline Status Badges */
+.pipeline-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 8px;
+    font-size: 12px;
+    border-radius: 4px;
+    font-weight: normal;
+    padding: 2px;
+}
+
+.pipeline-badge .material-icons {
+    font-size: 16px;
+}
+
+.pipeline-success {
     color: #1aaa55;
 }
 
-.pipeline-status.failed {
+.pipeline-failed {
     color: #dd2b0e;
 }
 
-.pipeline-status.running {
+.pipeline-running {
     color: #0077cc;
 }
 
-.pipeline-status.no-pipeline {
-    color: #888;
-    font-size: 12px;
-    background: #f0f0f0;
-    border-radius: 12px;
-    padding: 2px 6px;
+.pipeline-pending {
+    color: #ffa000;
 }
 
-.pipeline-status.unknown {
-    color: #888;
-    font-size: 12px;
-    background: #f0f0f0;
-    border-radius: 12px;
-    padding: 2px 6px;
+.pipeline-canceled, .pipeline-skipped {
+    color: #757575;
 }
 
-/* Add these new styles for tabs and virtual workspace */
+.pipeline-unknown {
+    color: #757575;
+}
 
+/* Tab Navigation */
 .tab-navigation {
     display: flex;
     margin-bottom: 15px;
     border-bottom: 1px solid #ddd;
 }
 
-.tab-button {
+.tab-btn {
     background: none;
     border: none;
     padding: 10px 15px;
@@ -482,11 +516,11 @@ textarea {
     transition: all 0.2s ease;
 }
 
-.tab-button:hover {
+.tab-btn:hover {
     color: #27AE60;
 }
 
-.tab-button.active {
+.tab-btn.active {
     color: #27AE60;
     border-bottom-color: #27AE60;
 }
