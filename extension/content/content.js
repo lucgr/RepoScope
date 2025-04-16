@@ -220,57 +220,72 @@ async function addUnifiedPRView(taskName) {
 
         console.log("Found matching task:", taskPRs);
 
-        // For each PR, check approval status
-        const prsWithApproval = [];
+        // For each PR, check approval status and pipeline status
+        const prsWithStatus = [];
         
         for (const pr of taskPRs.prs) {
             try {
-                // Use a more direct approach for status checking to avoid multiple network requests
+                // Check approval status
                 const approvalStatus = await checkPRApprovalStatus(pr.web_url);
-                prsWithApproval.push({
+                
+                // Check pipeline status if not available from backend
+                let pipelineStatus = pr.pipeline_status;
+                if (!pipelineStatus) {
+                    console.log("Fetching pipeline status for PR:", pr.web_url);
+                    pipelineStatus = await checkPRPipelineStatus(pr.web_url);
+                    console.log("Pipeline status for PR:", pr.web_url, pipelineStatus);
+                }
+                
+                prsWithStatus.push({
                     ...pr,
-                    isApproved: approvalStatus
+                    isApproved: approvalStatus,
+                    pipeline_status: pipelineStatus
                 });
             } catch (err) {
-                console.error("Error checking approval for PR:", pr.web_url, err);
-                prsWithApproval.push({
+                console.error("Error checking status for PR:", pr.web_url, err);
+                prsWithStatus.push({
                     ...pr,
-                    isApproved: false
+                    isApproved: false,
+                    pipeline_status: null
                 });
             }
         }
 
-        const taskWithApproval = { ...taskPRs, prs: prsWithApproval };
-        console.log("Task with approval status:", taskWithApproval);
+        const taskWithStatus = { ...taskPRs, prs: prsWithStatus };
+        console.log("Task with status:", taskWithStatus);
         
         // Create and inject the unified view
-        const unifiedView = createUnifiedView(taskWithApproval);
+        const unifiedView = createUnifiedView(taskWithStatus);
         await injectUnifiedView(unifiedView);
         console.log("Unified view successfully injected");
 
         // Set up periodic refresh of approval status
         setInterval(async () => {
             try {
-                const updatedPrsWithApproval = [];
+                const updatedPrsWithStatus = [];
                 
                 for (const pr of taskPRs.prs) {
                     try {
                         const approvalStatus = await checkPRApprovalStatus(pr.web_url);
-                        updatedPrsWithApproval.push({
+                        const pipelineStatus = await checkPRPipelineStatus(pr.web_url);
+                        
+                        updatedPrsWithStatus.push({
                             ...pr,
-                            isApproved: approvalStatus
+                            isApproved: approvalStatus,
+                            pipeline_status: pipelineStatus
                         });
                     } catch (err) {
-                        console.error("Error in refresh approval check:", err);
-                        updatedPrsWithApproval.push({
+                        console.error("Error in refresh status check:", err);
+                        updatedPrsWithStatus.push({
                             ...pr,
-                            isApproved: false
+                            isApproved: false,
+                            pipeline_status: null
                         });
                     }
                 }
                 
-                const updatedTaskWithApproval = { ...taskPRs, prs: updatedPrsWithApproval };
-                const updatedView = createUnifiedView(updatedTaskWithApproval);
+                const updatedTaskWithStatus = { ...taskPRs, prs: updatedPrsWithStatus };
+                const updatedView = createUnifiedView(updatedTaskWithStatus);
                 
                 const existingView = document.querySelector(".unified-pr-view");
                 if (existingView) {
@@ -410,12 +425,12 @@ function getPipelineStatusEmoji(status) {
     
     switch (status) {
         case 'success':
-            return '<span class="pipeline-status success">Pipeline Success ✅</span>';
+            return '<span class="pipeline-status success">✅ Pipeline(s) Succeeded</span>';
         case 'failed':
-            return '<span class="pipeline-status failed">Pipeline Failed ❌</span>';
+            return '<span class="pipeline-status failed">❌ Pipeline(s) Failed</span>';
         case 'running':
         case 'pending':
-            return '<span class="pipeline-status running">Pipeline Running ⏳</span>';
+            return '<span class="pipeline-status running">⌛ Pipeline(s) Running</span>';
         default:
             return '<span class="pipeline-status unknown">' + status + '</span>';
     }
@@ -563,40 +578,27 @@ async function approveAllPRs(taskName) {
             const taskPRs = unifiedPRs.find(task => task.task_name === taskName);
             
             if (taskPRs) {
-                // Check approval status for each PR
-                const prsWithApproval = [];
-                
-                if (taskPRs) {
-                    // Check approval status for each PR and pipeline status if needed
-                    const prsWithStatus = await Promise.all(taskPRs.prs.map(async (pr) => {
-                        const approvalStatus = await checkPRApprovalStatus(pr.web_url);
-                        
-                        // Check pipeline status if not available
-                        let pipelineStatus = pr.pipeline_status;
-                        if (!pipelineStatus) {
-                            pipelineStatus = await checkPRPipelineStatus(pr.web_url);
-                        }
-                        
-                        return { 
-                            ...pr, 
-                            isApproved: approvalStatus,
-                            pipeline_status: pipelineStatus 
-                        };
-                    }));
-
-                    const taskWithStatus = { ...taskPRs, prs: prsWithStatus };
+                // Check approval status for each PR and pipeline status if needed
+                const prsWithStatus = await Promise.all(taskPRs.prs.map(async (pr) => {
+                    const approvalStatus = await checkPRApprovalStatus(pr.web_url);
                     
-                    // Create and inject the updated view
-                    const updatedView = createUnifiedView(taskWithStatus);
-                    if (unifiedView) {
-                        unifiedView.replaceWith(updatedView);
+                    // Check pipeline status if not available
+                    let pipelineStatus = pr.pipeline_status;
+                    if (!pipelineStatus) {
+                        pipelineStatus = await checkPRPipelineStatus(pr.web_url);
                     }
-                }
+                    
+                    return { 
+                        ...pr, 
+                        isApproved: approvalStatus,
+                        pipeline_status: pipelineStatus 
+                    };
+                }));
 
-                const taskWithApproval = { ...taskPRs, prs: prsWithApproval };
+                const taskWithStatus = { ...taskPRs, prs: prsWithStatus };
                 
                 // Create and inject the updated view
-                const updatedView = createUnifiedView(taskWithApproval);
+                const updatedView = createUnifiedView(taskWithStatus);
                 if (unifiedView) {
                     unifiedView.replaceWith(updatedView);
                 }
@@ -627,116 +629,6 @@ async function approveAllPRs(taskName) {
             `;
         }
     }
-}
-
-function createUnifiedView(taskPRs) {
-    const container = document.createElement("div");
-    container.className = "unified-pr-view";
-    
-    // Create header
-    const header = document.createElement("div");
-    header.className = "unified-pr-header";
-    header.innerHTML = `
-        <h3>Related Merge Requests</h3>
-        <div class="task-name">Task: ${taskPRs.task_name}</div>
-    `;
-    container.appendChild(header);
-
-    // Create PR list
-    const prList = document.createElement("div");
-    prList.className = "unified-pr-list";
-    
-    // Check if all PRs are approved
-    const allApproved = taskPRs.prs.every(pr => pr.isApproved);
-
-    // Add PR items
-    taskPRs.prs.forEach(pr => {
-        const prItem = document.createElement("div");
-        prItem.className = `pr-item ${pr.isApproved ? "approved" : ""}`;
-        prItem.innerHTML = `
-            <a href="${pr.web_url}" target="_blank" title="${pr.title || "No title"}">
-                <div class="pr-item-content">
-                    <span class="pr-title">${pr.title || "No title"}</span>
-                    <span class="pr-repo-info">${pr.repository_name} #${pr.iid}</span>
-                </div>
-            </a>
-            ${pr.isApproved ? 
-                "<span class=\"approval-status\"><i class=\"checkmark\">&#10003;</i> Approved</span>" : 
-                "<span class=\"approval-status pending\">Not approved</span>"
-            }
-        `;
-        prList.appendChild(prItem);
-    });
-    
-    container.appendChild(prList);
-
-    // Add approve button or approved status
-    if (!allApproved) {
-        const approveButton = document.createElement("button");
-        approveButton.className = "approve-all-btn";
-        approveButton.textContent = "Approve All";
-        approveButton.onclick = () => approveAllPRs(taskPRs.task_name);
-        container.appendChild(approveButton);
-    } else {
-        const approvedStatus = document.createElement("div");
-        approvedStatus.className = "status approved";
-        approvedStatus.textContent = "All PRs Approved";
-        container.appendChild(approvedStatus);
-    }
-
-    return container;
-}
-
-async function injectUnifiedView(view) {
-    // Try multiple possible injection points
-    const injectionPoints = [
-        ".merge-request-description",
-        ".detail-page-description",
-        ".merge-request-details",
-        ".merge-request-info",
-        ".description",
-        ".issuable-details",
-        ".detail-page-header",
-        ".merge-request"
-    ];
-    
-    console.log("Attempting to inject unified view, searching for injection points...");
-    
-    let injectionPoint = null;
-    for (const selector of injectionPoints) {
-        const elements = document.querySelectorAll(selector);
-        console.log(`Selector ${selector} found ${elements.length} elements`);
-        
-        if (elements.length > 0) {
-            injectionPoint = elements[0];
-            console.log("Found injection point:", {
-                selector,
-                element: injectionPoint.outerHTML.substring(0, 100) + "..."
-            });
-            break;
-        }
-    }
-    
-    if (!injectionPoint) {
-        console.error("Could not find injection point, using body as fallback");
-        // Use body as a fallback
-        const container = document.createElement("div");
-        container.className = "unified-pr-view-container";
-        container.appendChild(view);
-        document.body.prepend(container);
-        return;
-    }
-
-    // Remove existing unified view if present
-    const existingView = document.querySelector(".unified-pr-view");
-    if (existingView) {
-        console.log("Removing existing unified view");
-        existingView.remove();
-    }
-
-    // Insert the unified view after the injection point
-    console.log("Injecting unified view after:", injectionPoint);
-    injectionPoint.parentNode.insertBefore(view, injectionPoint.nextSibling);
 }
 
 // Ensure the CSS file is loaded
