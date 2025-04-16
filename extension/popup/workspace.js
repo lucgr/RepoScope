@@ -476,67 +476,126 @@ function loadWorkspaceHistory() {
                     historyContainer.appendChild(resultDiv);
                 }
                 
-                // Create or update command textarea
-                let commandEl = resultDiv.querySelector("textarea");
+                // Create or update clone command code element
+                let commandEl = resultDiv.querySelector("code");
                 if (!commandEl) {
-                    commandEl = document.createElement("textarea");
-                    commandEl.readOnly = true;
+                    commandEl = document.createElement("code");
+                    commandEl.id = "history-clone-command";
+                    
+                    // Style the clone command
+                    commandEl.style.backgroundColor = "#272822";
+                    commandEl.style.color = "#f8f8f2";
+                    commandEl.style.padding = "10px";
+                    commandEl.style.borderRadius = "4px";
+                    commandEl.style.border = "1px solid #1e1f1c";
+                    commandEl.style.fontFamily = "monospace";
+                    commandEl.style.fontSize = "13px";
+                    commandEl.style.width = "100%";
+                    commandEl.style.boxSizing = "border-box";
+                    commandEl.style.display = "block";
+                    commandEl.style.overflow = "auto";
+                    commandEl.style.whiteSpace = "pre";
+                    
                     resultDiv.appendChild(commandEl);
                 }
+                
+                // Command container should be relative for absolute positioned copy button
+                resultDiv.style.position = "relative";
                 
                 // Determine if it's a local path or remote URL
                 const url = workspace.clone_url;
                 const isLocalPath = url && (url.includes(":\\") || url.startsWith("/"));
                 
+                // Format the URL properly for git
+                let formattedUrl = url;
+                
                 if (isLocalPath) {
-                    // For local path, use cd command
-                    const cd = navigator.platform.includes("Win") ? "cd" : "cd";
-                    const command = `${cd} "${url}"
-
-# Initialize and update all submodules
-./multi-repo init
-
-# To create branches in all submodules
-./multi-repo branch ${workspace.branch || "feature/your-branch"}
-
-# For help on other commands
-./multi-repo help`;
-                    
-                    commandEl.value = command;
-                } else {
-                    // For remote URL, use git clone
-                    const command = `git clone "${url}" ${workspace.name}
-cd ${workspace.name}
-
-# Initialize and update all submodules
-./multi-repo init
-
-# To create branches in all submodules
-./multi-repo branch ${workspace.branch || "feature/your-branch"}
-
-# For help on other commands
-./multi-repo help`;
-                    
-                    commandEl.value = command;
+                    // For local paths, convert them to file:/// format for Git
+                    formattedUrl = url.replace(/\\/g, "/");
+                    if (formattedUrl.startsWith("/")) {
+                        formattedUrl = "file://" + formattedUrl;
+                    } else {
+                        // Windows path needs three slashes
+                        formattedUrl = "file:///" + formattedUrl;
+                    }
+                    console.log("Converted history local path to Git URL:", formattedUrl);
                 }
                 
+                // For all URLs, use git clone format
+                const command = `git clone "${formattedUrl}" ${workspace.name}`;
+                console.log("Generated history clone command:", command);
+                
+                // Set the command text - just show the clone command, not the notes
+                commandEl.textContent = command;
+                
+                // Add note about next steps in a separate element
+                let noteEl = resultDiv.querySelector(".history-note");
+                if (!noteEl) {
+                    noteEl = document.createElement("div");
+                    noteEl.className = "history-note";
+                    noteEl.style.marginTop = "15px";
+                    noteEl.style.fontSize = "0.9em";
+                    noteEl.style.color = "#555";
+                    noteEl.style.backgroundColor = "#f5f7f9";
+                    noteEl.style.padding = "10px";
+                    noteEl.style.borderRadius = "4px";
+                    noteEl.style.border = "1px solid #e0e5e9";
+                    resultDiv.appendChild(noteEl);
+                }
+                
+                noteEl.innerHTML = `
+                    <p style="margin-top: 0; font-weight: 600;">After cloning:</p>
+                    <ol style="padding-left: 20px; margin-bottom: 0;">
+                        <li>Change to the directory: <code style="background: #eee; padding: 2px 4px; border-radius: 3px;">cd ${workspace.name}</code></li>
+                        <li>Initialize submodules: <code style="background: #eee; padding: 2px 4px; border-radius: 3px;">./multi-repo init</code></li>
+                        <li>Create branches: <code style="background: #eee; padding: 2px 4px; border-radius: 3px;">./multi-repo branch ${workspace.branch || "feature/your-branch"}</code></li>
+                    </ol>
+                `;
+                
                 // Create or update copy button
-                let copyBtn = resultDiv.querySelector("button");
+                let copyBtn = resultDiv.querySelector(".copy-history-cmd-btn");
                 if (!copyBtn) {
                     copyBtn = document.createElement("button");
                     copyBtn.className = "copy-history-cmd-btn";
                     copyBtn.textContent = "Copy";
+                    
+                    // Style the copy button
+                    copyBtn.style.position = "absolute";
+                    copyBtn.style.right = "10px";
+                    copyBtn.style.top = "8px";
+                    copyBtn.style.padding = "4px 8px";
+                    copyBtn.style.fontSize = "12px";
+                    copyBtn.style.backgroundColor = "#3E3D32";
+                    copyBtn.style.border = "1px solid #4E4D42";
+                    copyBtn.style.color = "#f8f8f2";
+                    copyBtn.style.borderRadius = "3px";
+                    copyBtn.style.cursor = "pointer";
+                    
                     resultDiv.appendChild(copyBtn);
                 }
                 
-                copyBtn.addEventListener("click", function() {
-                    copyToClipboard(commandEl.value, function(success) {
+                // Remove existing listeners by cloning and replacing the button
+                const newCopyBtn = copyBtn.cloneNode(true);
+                // Transfer all styles
+                newCopyBtn.style.cssText = copyBtn.style.cssText;
+                copyBtn.parentNode.replaceChild(newCopyBtn, copyBtn);
+                
+                newCopyBtn.addEventListener("click", function() {
+                    copyToClipboard(commandEl.textContent, function(success) {
                         if (success) {
-                            copyBtn.textContent = "Copied!";
-                            setTimeout(() => { copyBtn.textContent = "Copy"; }, 2000);
+                            newCopyBtn.textContent = "Copied!";
+                            newCopyBtn.style.backgroundColor = "#27AE60";
+                            setTimeout(() => { 
+                                newCopyBtn.textContent = "Copy"; 
+                                newCopyBtn.style.backgroundColor = "#3E3D32";
+                            }, 2000);
                         } else {
-                            copyBtn.textContent = "Failed";
-                            setTimeout(() => { copyBtn.textContent = "Copy"; }, 2000);
+                            newCopyBtn.textContent = "Failed";
+                            newCopyBtn.style.backgroundColor = "#E74C3C";
+                            setTimeout(() => { 
+                                newCopyBtn.textContent = "Copy"; 
+                                newCopyBtn.style.backgroundColor = "#3E3D32";
+                            }, 2000);
                         }
                     });
                 });
