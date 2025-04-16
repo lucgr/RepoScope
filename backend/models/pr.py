@@ -35,6 +35,7 @@ class UnifiedPR(BaseModel):
 class VirtualWorkspaceRequest(BaseModel):
     branch_name: str
     task_name: str
+    workspace_name: Optional[str] = None
     repo_urls: List[str]
 
 class VirtualWorkspaceResponse(BaseModel):

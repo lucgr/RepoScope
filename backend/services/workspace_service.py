@@ -35,13 +35,15 @@ class WorkspaceService:
             logger.error(error_msg)
             return False, error_msg
     
-    def create_virtual_workspace(self, branch_name: str, task_name: str, repo_urls: List[str]) -> VirtualWorkspaceResponse:
+    def create_virtual_workspace(self, branch_name: str, task_name: str, repo_urls: List[str], workspace_name: str = None, script_content: str = None) -> VirtualWorkspaceResponse:
         """Create a virtual workspace by aggregating multiple repositories as submodules.
         
         Args:
             branch_name: The name of the branch to create
             task_name: The task associated with this workspace
             repo_urls: List of repository URLs to add as submodules
+            workspace_name: Optional custom name for the workspace
+            script_content: Optional content for the commit-submodules.sh script
             
         Returns:
             VirtualWorkspaceResponse with status and clone command
@@ -52,8 +54,12 @@ class WorkspaceService:
                 message="No repositories provided"
             )
         
-        # Create a safe directory name from branch and task name
-        safe_name = f"{task_name}_{branch_name.replace('/', '_').replace(' ', '_')}"
+        # Use workspace_name if provided, otherwise fall back to task_name
+        if workspace_name:
+            safe_name = workspace_name.replace('/', '_').replace(' ', '_')
+        else:
+            safe_name = task_name.replace('/', '_').replace(' ', '_')
+            
         workspace_dir = os.path.join(self.workspace_root, safe_name)
         
         # Check if workspace directory already exists, remove if it does
@@ -122,6 +128,16 @@ class WorkspaceService:
         readme_path = os.path.join(workspace_dir, "README.md")
         with open(readme_path, "w") as f:
             f.write(readme_content)
+        
+        # Create the commit-submodules.sh script if content is provided
+        if script_content:
+            script_path = os.path.join(workspace_dir, "commit-submodules.sh")
+            with open(script_path, "w") as f:
+                f.write(script_content)
+            
+            # Make the script executable
+            os.chmod(script_path, 0o755)
+            logger.info(f"Created commit-submodules.sh script in workspace")
         
         # Commit the changes
         success, _ = self._run_git_command(["git", "add", "."], cwd=workspace_dir)

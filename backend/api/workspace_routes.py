@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from ..models.pr import VirtualWorkspaceRequest, VirtualWorkspaceResponse
 from ..services.workspace_service import WorkspaceService
 import logging
+import json
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -15,17 +16,29 @@ def get_workspace_service():
 
 @router.post("/create", response_model=VirtualWorkspaceResponse)
 async def create_virtual_workspace(
-    request: VirtualWorkspaceRequest = Body(...),
+    request: dict = Body(...),
     workspace_service: WorkspaceService = Depends(get_workspace_service)
 ):
     """Create a virtual workspace with repositories as submodules."""
     try:
-        logger.info(f"Creating virtual workspace for branch {request.branch_name} with {len(request.repo_urls)} repositories")
+        # Extract required fields from the request
+        branch_name = request.get('branch_name')
+        task_name = request.get('task_name')
+        repo_urls = request.get('repo_urls', [])
+        workspace_name = request.get('workspace_name')
+        script_content = request.get('script_content')
+        
+        if not branch_name or not task_name or not repo_urls:
+            raise HTTPException(status_code=400, detail="Missing required fields")
+            
+        logger.info(f"Creating virtual workspace for branch {branch_name} with {len(repo_urls)} repositories")
         
         response = workspace_service.create_virtual_workspace(
-            branch_name=request.branch_name,
-            task_name=request.task_name,
-            repo_urls=request.repo_urls
+            branch_name=branch_name,
+            task_name=task_name,
+            repo_urls=repo_urls,
+            workspace_name=workspace_name,
+            script_content=script_content
         )
         
         if response.status == "error":
