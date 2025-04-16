@@ -816,21 +816,33 @@ function approvePR(repoUrl, prId, button) {
         const backendUrl = data.backendUrl;
         
         if (!gitlabToken || !backendUrl) {
-            alert('GitLab token or Backend URL not set');
+            alert('Please configure Backend URL and GitLab Token in Settings');
             button.disabled = false;
             button.textContent = 'Approve';
             return;
         }
-
-        fetch(`${backendUrl}/api/prs/approve`, {
+        
+        // Find the task name from the task header
+        const prItem = button.closest('.pr-item');
+        const taskGroup = prItem ? prItem.closest('.task-group') : null;
+        const header = taskGroup ? taskGroup.querySelector('.task-header h3') : null;
+        const taskName = header ? header.textContent.trim() : null;
+        
+        if (!taskName) {
+            console.error('Could not determine task name for approval');
+            button.disabled = false;
+            button.textContent = 'Approve';
+            return;
+        }
+        
+        fetch(`${backendUrl}/api/prs/approve?task_name=${encodeURIComponent(taskName)}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'x-gitlab-token': gitlabToken
             },
             body: JSON.stringify({
-                repositoryUrl: repoUrl,
-                mergeRequestId: prId
+                repo_urls: [repoUrl]
             })
         })
         .then(response => {
@@ -844,10 +856,15 @@ function approvePR(repoUrl, prId, button) {
             button.textContent = 'Approved';
             button.disabled = true;
             
-            // Mark this PR as approved
+            // Update UI to reflect approval
             const prItem = button.closest('.pr-item');
             if (prItem) {
-                prItem.dataset.approved = 'true';
+                const approvalStatus = prItem.querySelector('.approval-status');
+                if (approvalStatus) {
+                    approvalStatus.className = 'approval-status approved';
+                    approvalStatus.innerHTML = '✓';
+                    approvalStatus.title = 'Approved';
+                }
             }
             
             // Check if all PRs in this task are now approved
@@ -887,8 +904,18 @@ function checkAllTaskPRsApproved(button) {
 
 // Approve all PRs in a task group
 function approveAllPRs(taskId) {
-    const taskGroup = document.querySelector(`.task-group .task-header h3:contains('${taskId}')`).closest('.task-group');
-    if (!taskGroup) return;
+    // Find the task group using our helper function
+    const taskHeader = findElementWithText('.task-group .task-header h3', taskId);
+    if (!taskHeader) {
+        console.error(`Task header with ID ${taskId} not found`);
+        return;
+    }
+    
+    const taskGroup = taskHeader.closest('.task-group');
+    if (!taskGroup) {
+        console.error('Could not find task group container');
+        return;
+    }
     
     const approveAllBtn = taskGroup.querySelector('.approve-all-btn');
     if (approveAllBtn) {
@@ -896,91 +923,126 @@ function approveAllPRs(taskId) {
         approveAllBtn.textContent = 'Approving...';
     }
     
+    // Get all repository URLs from the task group
+    const repoUrls = [];
     const approveBtns = taskGroup.querySelectorAll('.approve-btn:not([disabled])');
-    let approvalPromises = [];
-    
     approveBtns.forEach(btn => {
-        const prId = btn.dataset.prId;
         const repoUrl = btn.dataset.repoUrl;
-        
+        if (repoUrl && !repoUrls.includes(repoUrl)) {
+            repoUrls.push(repoUrl);
+        }
         btn.disabled = true;
         btn.textContent = 'Approving...';
-        
-        const promise = new Promise((resolve, reject) => {
-            chrome.storage.sync.get(['gitlabToken', 'backendUrl'], function(data) {
-                const gitlabToken = data.gitlabToken;
-                const backendUrl = data.backendUrl;
-                
-                if (!gitlabToken || !backendUrl) {
-                    reject(new Error('GitLab token or Backend URL not set'));
-                    return;
-                }
-                
-                fetch(`${backendUrl}/api/prs/approve`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-gitlab-token': gitlabToken
-                    },
-                    body: JSON.stringify({
-                        repositoryUrl: repoUrl,
-                        mergeRequestId: prId
-                    })
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`Failed to approve: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log('PR approved:', data);
-                    btn.textContent = 'Approved';
-                    
-                    // Update UI to reflect approval
-                    const prItem = btn.closest('.pr-item');
-                    if (prItem) {
-                        const approvalStatus = prItem.querySelector('.approval-status');
-                        if (approvalStatus) {
-                            approvalStatus.className = 'approval-status approved';
-                            approvalStatus.innerHTML = '✓';
-                            approvalStatus.title = 'Approved';
-                        }
-                    }
-                    
-                    resolve();
-                })
-                .catch(error => {
-                    console.error('Failed to approve PR:', error);
-                    btn.disabled = false;
-                    btn.textContent = 'Approve';
-                    reject(error);
-                });
-            });
-        });
-        
-        approvalPromises.push(promise);
     });
     
-    Promise.allSettled(approvalPromises)
-        .then(results => {
-            if (approveAllBtn) {
-                const failures = results.filter(r => r.status === 'rejected').length;
-                
-                if (failures === 0) {
-                    approveAllBtn.textContent = 'All Approved';
-                } else {
-                    approveAllBtn.textContent = `Failed ${failures}/${approvalPromises.length}`;
-                    approveAllBtn.disabled = false;
-                }
-            }
+    if (repoUrls.length === 0) {
+        console.error('No repository URLs found in task group');
+        if (approveAllBtn) {
+            approveAllBtn.disabled = false;
+            approveAllBtn.textContent = 'Approve All';
+        }
+        approveBtns.forEach(btn => {
+            btn.disabled = false;
+            btn.textContent = 'Approve';
         });
+        return;
+    }
+    
+    // Make a single API call to approve all PRs for this task
+    chrome.storage.sync.get(['gitlabToken', 'backendUrl'], function(data) {
+        const gitlabToken = data.gitlabToken;
+        const backendUrl = data.backendUrl;
+        
+        if (!gitlabToken || !backendUrl) {
+            alert('Please configure Backend URL and GitLab Token in Settings');
+            if (approveAllBtn) {
+                approveAllBtn.disabled = false;
+                approveAllBtn.textContent = 'Approve All';
+            }
+            approveBtns.forEach(btn => {
+                btn.disabled = false;
+                btn.textContent = 'Approve';
+            });
+            return;
+        }
+        
+        fetch(`${backendUrl}/api/prs/approve?task_name=${encodeURIComponent(taskId)}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-gitlab-token': gitlabToken
+            },
+            body: JSON.stringify({
+                repo_urls: repoUrls
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Failed to approve all PRs: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('All PRs approved:', data);
+            if (approveAllBtn) {
+                approveAllBtn.textContent = 'All Approved';
+                approveAllBtn.disabled = false;
+            }
+            approveBtns.forEach(btn => {
+                btn.disabled = false;
+                btn.textContent = 'Approve';
+            });
+            
+            // Update UI to reflect approval
+            const prItems = document.querySelectorAll('.pr-item');
+            prItems.forEach(item => {
+                const prId = item.dataset.prId;
+                const pr = data.find(p => p.id === prId);
+                if (pr) {
+                    const approvalStatus = item.querySelector('.approval-status');
+                    if (approvalStatus) {
+                        approvalStatus.className = 'approval-status approved';
+                        approvalStatus.innerHTML = '✓';
+                        approvalStatus.title = 'Approved';
+                    }
+                }
+            });
+            
+            // Add the new workspace to the workspace list
+            const newWorkspace = {
+                name: taskId,
+                task: taskId,
+                created_at: new Date().toISOString(),
+                clone_url: data.clone_url
+            };
+            
+            addWorkspaceToHistory(newWorkspace);
+            loadWorkspaceHistory();
+        })
+        .catch(error => {
+            console.error('Failed to approve all PRs:', error);
+            if (approveAllBtn) {
+                approveAllBtn.disabled = false;
+                approveAllBtn.textContent = 'Approve All';
+            }
+            approveBtns.forEach(btn => {
+                btn.disabled = false;
+                btn.textContent = 'Approve';
+            });
+        });
+    });
 }
 
-// Helper function for contains-like selector (since it's not standard)
-Element.prototype.contains = function(text) {
-    return this.textContent.includes(text);
-};
+// Helper function for text search in elements
+function findElementWithText(selector, text) {
+    const elements = document.querySelectorAll(selector);
+    for (const element of elements) {
+        if (element.textContent.includes(text)) {
+            return element;
+        }
+    }
+    return null;
+}
 
 // Helper function to get pipeline status class
 function getPipelineStatusClass(status) {

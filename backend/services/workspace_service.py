@@ -129,16 +129,37 @@ class WorkspaceService:
         with open(readme_path, "w") as f:
             f.write(readme_content)
         
-        # Create the commit-submodules.sh script if content is provided
-        if script_content:
-            script_path = os.path.join(workspace_dir, "commit-submodules.sh")
+        # Create the commit-submodules.sh script
+        # Try to use the template file first, fall back to provided script_content if template not found
+        script_path = os.path.join(workspace_dir, "commit-submodules.sh")
+        template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates", "commit-submodules.sh")
+        
+        if os.path.exists(template_path):
+            # Use the template file
+            try:
+                with open(template_path, "r") as src, open(script_path, "w") as dst:
+                    dst.write(src.read())
+                logger.info(f"Created commit-submodules.sh script from template")
+            except Exception as e:
+                logger.error(f"Failed to create commit script from template: {str(e)}")
+                
+                # Fall back to script_content if provided
+                if script_content:
+                    with open(script_path, "w") as f:
+                        f.write(script_content)
+                    logger.info(f"Created commit-submodules.sh script from provided content")
+        elif script_content:
+            # Use provided script content
             with open(script_path, "w") as f:
                 f.write(script_content)
-            
-            # Make the script executable
-            os.chmod(script_path, 0o755)
-            logger.info(f"Created commit-submodules.sh script in workspace")
+            logger.info(f"Created commit-submodules.sh script from provided content")
+        else:
+            logger.warning(f"No template or script content available for commit-submodules.sh")
         
+        # Make the script executable if it was created
+        if os.path.exists(script_path):
+            os.chmod(script_path, 0o755)
+            
         # Commit the changes
         success, _ = self._run_git_command(["git", "add", "."], cwd=workspace_dir)
         if not success:
