@@ -645,6 +645,12 @@ function updateUnifiedPRsUI(data) {
                 text-align: center;
                 padding: 8px;
             }
+            .approve-btn:disabled {
+                background-color: #95A5A6;
+                color: white;
+                cursor: not-allowed;
+                opacity: 0.7;
+            }
         </style>
     `;
     
