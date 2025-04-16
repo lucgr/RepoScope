@@ -9,7 +9,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 loadScript("workspace.js", function() {
                     console.log("All scripts loaded successfully");
                     // Explicitly call initializePopup after all scripts are loaded
-                    if (typeof initializePopup === 'function') {
+                    if (typeof initializePopup === "function") {
                         initializePopup();
                     } else {
                         console.error("initializePopup function not found!");

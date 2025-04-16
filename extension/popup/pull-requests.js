@@ -316,17 +316,17 @@ function updateUnifiedPRsUI(data) {
             // Create a simple pipeline status badge
             let pipelineStatusValue = "unknown";
             if (pr.pipeline_status) {
-                if (typeof pr.pipeline_status === 'string') {
+                if (typeof pr.pipeline_status === "string") {
                     // Normalize status to our standard values
                     const status = pr.pipeline_status.toLowerCase();
-                    if (status.includes('success') || status === 'ace') {
-                        pipelineStatusValue = 'success';
-                    } else if (status.includes('fail')) {
-                        pipelineStatusValue = 'failed';
-                    } else if (status.includes('run')) {
-                        pipelineStatusValue = 'running';
-                    } else if (status.includes('pend')) {
-                        pipelineStatusValue = 'pending';
+                    if (status.includes("success") || status === "ace") {
+                        pipelineStatusValue = "success";
+                    } else if (status.includes("fail")) {
+                        pipelineStatusValue = "failed";
+                    } else if (status.includes("run")) {
+                        pipelineStatusValue = "running";
+                    } else if (status.includes("pend")) {
+                        pipelineStatusValue = "pending";
                     }
                 }
             }

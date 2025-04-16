@@ -438,8 +438,8 @@ function loadWorkspaceHistory() {
             // First, normalize the repos property if needed
             if (!workspace.repos) {
                 workspace.repos = [];
-            } else if (!Array.isArray(workspace.repos) && typeof workspace.repos === 'string') {
-                workspace.repos = workspace.repos.split(',').map(r => r.trim()).filter(r => r);
+            } else if (!Array.isArray(workspace.repos) && typeof workspace.repos === "string") {
+                workspace.repos = workspace.repos.split(",").map(r => r.trim()).filter(r => r);
             } else if (!Array.isArray(workspace.repos)) {
                 workspace.repos = [];
             }
@@ -562,8 +562,8 @@ function addWorkspaceToHistory(workspace) {
     
     // Ensure repos is an array
     if (workspace.repos && !Array.isArray(workspace.repos)) {
-        if (typeof workspace.repos === 'string') {
-            workspace.repos = workspace.repos.split(',').map(r => r.trim()).filter(r => r);
+        if (typeof workspace.repos === "string") {
+            workspace.repos = workspace.repos.split(",").map(r => r.trim()).filter(r => r);
         } else {
             workspace.repos = [];
         }
@@ -618,12 +618,12 @@ function updateCloneCommand(url) {
     
     if (isLocalPath) {
         // For local paths, convert them to file:/// format for Git
-        formattedUrl = url.replace(/\\/g, '/');
-        if (formattedUrl.startsWith('/')) {
-            formattedUrl = 'file://' + formattedUrl;
+        formattedUrl = url.replace(/\\/g, "/");
+        if (formattedUrl.startsWith("/")) {
+            formattedUrl = "file://" + formattedUrl;
         } else {
             // Windows path needs three slashes
-            formattedUrl = 'file:///' + formattedUrl;
+            formattedUrl = "file:///" + formattedUrl;
         }
         console.log("Converted local path to Git URL:", formattedUrl);
     }
