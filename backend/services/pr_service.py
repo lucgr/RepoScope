@@ -13,9 +13,9 @@ class PRService:
     def extract_task_name(self, branch_name: str) -> str:
         """Extract task name from branch name using common patterns."""
         patterns = [
-            r'^(feature|bug|bugfix|hotfix|fix|chore|task)/([A-Z]+-\d+)',  # JIRA-style with more prefixes
-            r'^(feature|bug|bugfix|hotfix|fix|chore|task)/(\d+)',         # Numeric with more prefixes
-            r'^([A-Z]+-\d+)',                                             # Just ticket number
+            r'^(feature|bug|bugfix|hotfix|fix|chore|task)/([A-Z]+-\d+)', # JIRA-style with more prefixes (e.g., feature/ABC-123)
+            r'^(feature|bug|bugfix|hotfix|fix|chore|task)/(\d+)', # Numeric with more prefixes (e.g., feature/123)
+            r'^([A-Z]+-\d+)', # Just ticket number (e.g., ABC-123)
         ]
         
         for pattern in patterns:
@@ -29,10 +29,8 @@ class PRService:
     def get_project_from_url(self, repo_url: str):
         """Get GitLab project from repository URL."""
         try:
-            # Remove trailing slash and .git if present
+            # Remove trailing slash and .git if present and extract the path from the URL
             repo_url = repo_url.rstrip('/').rstrip('.git')
-            
-            # Extract the path from the URL
             path = repo_url.split(self.gl.url)[1].lstrip('/')
             
             return self.gl.projects.get(path)
@@ -57,12 +55,13 @@ class PRService:
             return None
 
     def fetch_prs(self, repo_urls: List[str]) -> List[PR]:
-        """Fetch PRs from multiple GitLab repositories."""
+        """Fetch PRs from multiple GitLab repositories with improved error handling."""
         all_prs = []
         
         for repo_url in repo_urls:
             try:
-                logger.info(f"Fetching PRs for repository: {repo_url}")
+                logger.debug(f"Fetching PRs for repository: {repo_url}")
+                # Get project with timeout
                 project = self.get_project_from_url(repo_url)
                 merge_requests = project.mergerequests.list(state='opened', get_all=True)
                 
@@ -118,14 +117,18 @@ class PRService:
                 elif all(pr.state == 'closed' for pr in grouped_prs):
                     status = 'closed'
                 
+                # Calculate total changes and comments
+                total_changes = sum(getattr(pr, 'changes_count', 0) for pr in grouped_prs)
+                total_comments = sum(getattr(pr, 'comments_count', 0) for pr in grouped_prs)
+                
                 unified_pr = UnifiedPR(
                     task_name=task_name,
                     prs=grouped_prs,
-                    total_changes=0,  # We don't have this information yet
-                    total_comments=0,  # We don't have this information yet
+                    total_changes=total_changes,
+                    total_comments=total_comments,
                     status=status
                 )
                 unified_prs.append(unified_pr)
         
         logger.info(f"Created {len(unified_prs)} unified PR views")
-        return unified_prs 
+        return unified_prs

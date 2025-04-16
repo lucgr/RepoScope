@@ -1,3 +1,6 @@
+/* Import Google Font */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700&display=swap');
+
 body {
     width: 400px;
     padding: 20px;
@@ -13,7 +16,24 @@ body {
 h1 {
     font-size: 24px;
     margin: 0;
-    color: #333;
+    color: #2D9CDB;
+    font-family: 'Montserrat', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    position: relative;
+    padding-bottom: 8px;
+    text-shadow: 1px 1px 0px rgba(0,0,0,0.1);
+}
+
+h1:after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 60px;
+    height: 3px;
+    background: #27AE60;
+    border-radius: 2px;
 }
 
 h2 {
