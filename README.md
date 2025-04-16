@@ -37,17 +37,7 @@ When viewing a merge request in GitLab, related PRs are displayed directly on th
 
 ![Injected View](images/unified-injected-view.png)
 
-You can see approval status for all related PRs:
-
-![Missing Approvals](images/missing_approvals.png)
-
-And approve all related PRs with a single click:
-
-![All Approved](images/all_approved.png)
-
-You can also monitor pipeline status for all related PRs:
-
-![Pipeline Status](images/pipeline_status.png)
+You can see approval status for all related PRs, approve all related PRs with a single click, and monitor pipeline status for all related PRs.
 
 ## Setup
 
@@ -72,7 +62,7 @@ uvicorn backend.main:app --reload
 
 This extension uses:
 - Vanilla JavaScript for the extension frontend
-- FastAPI for the backend
+- FastAPI and Python for the backend
 - GitLab API for fetching and managing PRs
 
 ## How It Works
