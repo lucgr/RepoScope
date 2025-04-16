@@ -186,84 +186,78 @@ function updateWorkspaceRepoSelection(repoUrlsString) {
         emptyState.style.display = repos.length > 0 ? 'none' : 'block';
     }
     
-    // First add global styles to container parent element
-    const style = document.createElement('style');
-    style.textContent = `
-        #workspace-repo-selection {
-            max-height: 200px;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 8px;
-            margin-bottom: 10px;
-        }
-        .repo-checkbox-item {
-            display: flex;
-            align-items: center;
-            margin-bottom: 8px;
-            padding: 6px;
-            border-radius: 3px;
-            background-color: #f5f5f5;
-        }
-        .repo-checkbox-item input[type="checkbox"] {
-            margin-right: 10px;
-            flex-shrink: 0;
-        }
-        .repo-checkbox-item label {
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            flex-grow: 1;
-        }
-        .repo-name {
-            font-weight: bold;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .repo-url {
-            font-size: 0.8em;
-            color: #666;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-    `;
-    document.head.appendChild(style);
+    // Apply container styles
+    container.style.maxHeight = '220px';
+    container.style.overflowY = 'auto';
+    container.style.border = '1px solid #ddd';
+    container.style.borderRadius = '4px';
+    container.style.padding = '10px';
+    container.style.marginBottom = '15px';
+    container.style.backgroundColor = '#f9f9f9';
     
-    // Add repos to selection
+    // Table-based layout for better visibility
     if (repos.length > 0) {
+        const table = document.createElement('table');
+        table.style.width = '100%';
+        table.style.borderCollapse = 'collapse';
+        
         repos.forEach(function(repo, index) {
-            const repoName = repo.split('/').pop().replace('.git', '');
+            const row = document.createElement('tr');
+            row.style.borderBottom = '1px solid #eee';
             
-            const item = document.createElement('div');
-            item.className = 'repo-checkbox-item';
+            // Checkbox cell
+            const checkboxCell = document.createElement('td');
+            checkboxCell.style.width = '30px';
+            checkboxCell.style.padding = '8px 0';
+            checkboxCell.style.verticalAlign = 'top';
             
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.id = 'repo-' + index;
             checkbox.value = repo;
             checkbox.checked = true;
+            checkbox.style.margin = '3px 0 0 0';
+            
+            checkboxCell.appendChild(checkbox);
+            
+            // Label cell
+            const labelCell = document.createElement('td');
+            labelCell.style.padding = '8px 5px';
             
             const label = document.createElement('label');
             label.htmlFor = 'repo-' + index;
-            label.title = repo;
+            label.style.cursor = 'pointer';
+            label.style.display = 'block';
             
-            const nameSpan = document.createElement('span');
-            nameSpan.className = 'repo-name';
-            nameSpan.textContent = repoName;
+            // Extract repo name
+            const repoName = repo.split('/').pop().replace('.git', '');
             
-            const urlSpan = document.createElement('span');
-            urlSpan.className = 'repo-url';
-            urlSpan.textContent = repo;
+            // Bold repo name
+            const nameDiv = document.createElement('div');
+            nameDiv.textContent = repoName;
+            nameDiv.style.fontWeight = 'bold';
+            nameDiv.style.marginBottom = '2px';
+            label.appendChild(nameDiv);
             
-            label.appendChild(nameSpan);
-            label.appendChild(urlSpan);
+            // Smaller URL text
+            const urlDiv = document.createElement('div');
+            urlDiv.textContent = repo;
+            urlDiv.style.fontSize = '11px';
+            urlDiv.style.color = '#666';
+            urlDiv.style.wordBreak = 'break-all';
+            label.appendChild(urlDiv);
             
-            item.appendChild(checkbox);
-            item.appendChild(label);
-            container.appendChild(item);
+            labelCell.appendChild(label);
+            
+            // Add cells to row
+            row.appendChild(checkboxCell);
+            row.appendChild(labelCell);
+            
+            // Add row to table
+            table.appendChild(row);
         });
+        
+        container.appendChild(table);
     }
 }
 
@@ -441,6 +435,9 @@ function initializePopup() {
         
         // Load unified PRs
         loadUnifiedPRs();
+        
+        // Load workspace history
+        loadWorkspaceHistory();
     });
 }
 
@@ -1045,6 +1042,7 @@ function getPipelineStatusLabel(status) {
 function extractTaskFromBranch() {
     const branchInput = document.getElementById('workspace-branch-name');
     const taskInput = document.getElementById('workspace-task-name');
+    const workspaceNameInput = document.getElementById('workspace-name');
     
     if (!branchInput || !taskInput) return;
     
@@ -1067,22 +1065,35 @@ function extractTaskFromBranch() {
     }
     
     taskInput.value = taskName;
+    
+    // Also suggest a workspace name based on the task if workspace name is empty
+    if (workspaceNameInput && !workspaceNameInput.value && taskName) {
+        workspaceNameInput.value = `workspace-${taskName.toLowerCase()}`;
+    }
 }
 
 // Create Virtual Workspace
 function createVirtualWorkspace() {
+    const workspaceNameInput = document.getElementById('workspace-name');
     const branchInput = document.getElementById('workspace-branch-name');
     const taskInput = document.getElementById('workspace-task-name');
     const resultDiv = document.getElementById('workspace-result');
     const cloneCommandEl = document.getElementById('clone-command');
+    const createBtn = document.getElementById('create-workspace-btn');
     
-    if (!branchInput || !taskInput || !resultDiv || !cloneCommandEl) {
+    if (!workspaceNameInput || !branchInput || !taskInput || !resultDiv || !cloneCommandEl || !createBtn) {
         console.error('Missing required elements for workspace creation');
         return;
     }
     
+    const workspaceName = workspaceNameInput.value.trim();
     const branchName = branchInput.value.trim();
     const taskName = taskInput.value.trim();
+    
+    if (!workspaceName) {
+        alert('Please enter a workspace name');
+        return;
+    }
     
     if (!branchName) {
         alert('Please enter a branch name');
@@ -1106,6 +1117,35 @@ function createVirtualWorkspace() {
         return;
     }
     
+    // Show loading indicator
+    const originalBtnText = createBtn.textContent;
+    createBtn.disabled = true;
+    createBtn.textContent = 'Creating workspace...';
+    
+    // Add a loading spinner next to the button
+    const loadingSpinner = document.createElement('div');
+    loadingSpinner.id = 'workspace-loading';
+    loadingSpinner.style.display = 'inline-block';
+    loadingSpinner.style.width = '20px';
+    loadingSpinner.style.height = '20px';
+    loadingSpinner.style.border = '3px solid rgba(0, 0, 0, 0.1)';
+    loadingSpinner.style.borderTop = '3px solid #3498db';
+    loadingSpinner.style.borderRadius = '50%';
+    loadingSpinner.style.animation = 'spin 1s linear infinite';
+    loadingSpinner.style.marginLeft = '10px';
+    
+    // Add keyframes for spinner animation
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    createBtn.parentNode.insertBefore(loadingSpinner, createBtn.nextSibling);
+    
     // Get backend URL and token
     chrome.storage.sync.get(['backendUrl', 'gitlabToken'], function(data) {
         const backendUrl = data.backendUrl;
@@ -1113,68 +1153,241 @@ function createVirtualWorkspace() {
         
         if (!backendUrl || !gitlabToken) {
             alert('Please configure Backend URL and GitLab Token in Settings');
+            resetCreateButton();
             return;
         }
         
-        // Prepare payload with the correct format
-        const payload = {
-            task_name: taskName,
-            branch_name: branchName,
-            repo_urls: selectedRepos
-        };
-        
-        console.log('Creating workspace with payload:', payload);
-        
-        // Create workspace request
-        fetch(`${backendUrl}/api/workspace/create`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-gitlab-token': gitlabToken
-            },
-            body: JSON.stringify(payload)
-        })
-        .then(response => {
-            if (!response.ok) {
-                // Try to get error details from response
-                return response.json().then(errData => {
-                    throw new Error(`Failed to create workspace: ${response.status} - ${errData.detail || JSON.stringify(errData)}`);
-                }).catch(err => {
-                    if (err.message.includes('Failed to create workspace')) {
-                        throw err;
+        // Read the commit submodules script content
+        fetch(chrome.runtime.getURL('/backend-scripts/commit-submodules.sh'))
+            .then(response => response.text())
+            .then(scriptContent => {
+                // Prepare payload with the correct format - simplified for clarity
+                const payload = {
+                    name: workspaceName,  // Primary name field
+                    workspace_name: workspaceName,  // Backup name field
+                    task_name: taskName,
+                    branch_name: branchName,
+                    repo_urls: selectedRepos,
+                    script_content: scriptContent
+                };
+                
+                console.log('Creating workspace with payload:', payload);
+                
+                // Create workspace request
+                fetch(`${backendUrl}/api/workspace/create`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-gitlab-token': gitlabToken
+                    },
+                    body: JSON.stringify(payload)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        // Try to get error details from response
+                        return response.json().then(errData => {
+                            throw new Error(`Failed to create workspace: ${response.status} - ${errData.detail || JSON.stringify(errData)}`);
+                        }).catch(err => {
+                            if (err.message.includes('Failed to create workspace')) {
+                                throw err;
+                            }
+                            throw new Error(`Failed to create workspace: ${response.status}`);
+                        });
                     }
-                    throw new Error(`Failed to create workspace: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Workspace created:', data);
+                    
+                    // Show result
+                    resultDiv.style.display = 'block';
+                    
+                    // Set clone command - prioritize workspace name
+                    let cloneUrl;
+                    if (data.clone_url) {
+                        cloneUrl = data.clone_url;
+                    } else if (data.cloneUrl) {
+                        cloneUrl = data.cloneUrl;
+                    } else {
+                        // Force the workspace name in the URL
+                        cloneUrl = `${backendUrl}/workspace/${workspaceName}`;
+                    }
+                    
+                    const cloneCommand = `git clone ${cloneUrl}`;
+                    cloneCommandEl.textContent = cloneCommand;
+                    
+                    // Add note about the submodule script
+                    const noteEl = document.createElement('div');
+                    noteEl.style.backgroundColor = '#e7f3fe';
+                    noteEl.style.borderLeft = '4px solid #2196F3';
+                    noteEl.style.padding = '10px';
+                    noteEl.style.marginTop = '10px';
+                    noteEl.style.borderRadius = '3px';
+                    
+                    const codeStyle = 'background-color: #f1f1f1; padding: 2px 5px; border-radius: 3px; font-family: monospace;';
+                    
+                    noteEl.innerHTML = '<strong>Note:</strong> A helper script has been added to the workspace that can commit changes across all submodules. Use <span style="' + codeStyle + '">./commit-submodules.sh "Your commit message"</span> to commit changes.';
+                    resultDiv.appendChild(noteEl);
+                    
+                    // Setup copy button
+                    const copyBtn = document.getElementById('copy-clone-command');
+                    if (copyBtn) {
+                        copyBtn.addEventListener('click', function() {
+                            navigator.clipboard.writeText(cloneCommand).then(function() {
+                                copyBtn.textContent = 'Copied!';
+                                setTimeout(function() {
+                                    copyBtn.textContent = 'Copy';
+                                }, 2000);
+                            });
+                        });
+                    }
+                    
+                    // Add the new workspace to the workspace list
+                    const newWorkspace = {
+                        name: workspaceName,
+                        task: taskName,
+                        created_at: new Date().toISOString(),
+                        clone_url: cloneUrl
+                    };
+                    
+                    addWorkspaceToHistory(newWorkspace);
+                    loadWorkspaceHistory();
+                    
+                    // Reset the button
+                    resetCreateButton();
+                })
+                .catch(error => {
+                    console.error('Failed to create workspace:', error);
+                    alert(error.message);
+                    resetCreateButton();
                 });
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log('Workspace created:', data);
+            })
+            .catch(error => {
+                console.error('Failed to load script content:', error);
+                alert('Failed to load script content: ' + error.message);
+                resetCreateButton();
+            });
+    });
+    
+    // Helper function to reset the button state
+    function resetCreateButton() {
+        createBtn.disabled = false;
+        createBtn.textContent = originalBtnText;
+        const spinner = document.getElementById('workspace-loading');
+        if (spinner) {
+            spinner.parentNode.removeChild(spinner);
+        }
+    }
+}
+
+// Load workspace history
+function loadWorkspaceHistory() {
+    const historyContainer = document.getElementById('workspace-history');
+    if (!historyContainer) {
+        console.error('Workspace history container not found');
+        return;
+    }
+    
+    // Get workspace history from storage
+    chrome.storage.sync.get(['workspaceHistory'], function(data) {
+        const workspaces = data.workspaceHistory || [];
+        
+        // Clear container
+        historyContainer.innerHTML = '';
+        
+        // Add title
+        const title = document.createElement('h3');
+        title.textContent = 'Recent Workspaces';
+        title.style.marginTop = '20px';
+        title.style.borderBottom = '1px solid #ddd';
+        title.style.paddingBottom = '8px';
+        historyContainer.appendChild(title);
+        
+        // Create workspace list
+        if (workspaces.length === 0) {
+            const emptyMsg = document.createElement('p');
+            emptyMsg.textContent = 'No workspaces created yet.';
+            emptyMsg.style.fontStyle = 'italic';
+            emptyMsg.style.color = '#666';
+            historyContainer.appendChild(emptyMsg);
+        } else {
+            const list = document.createElement('div');
+            list.style.maxHeight = '200px';
+            list.style.overflowY = 'auto';
             
-            // Show result
-            resultDiv.style.display = 'block';
-            
-            // Set clone command
-            const cloneUrl = data.clone_url || data.cloneUrl || `${backendUrl}/workspace/${taskName}`;
-            const cloneCommand = `git clone ${cloneUrl}`;
-            cloneCommandEl.textContent = cloneCommand;
-            
-            // Setup copy button
-            const copyBtn = document.getElementById('copy-clone-command');
-            if (copyBtn) {
-                copyBtn.addEventListener('click', function() {
-                    navigator.clipboard.writeText(cloneCommand).then(function() {
-                        copyBtn.textContent = 'Copied!';
+            workspaces.forEach(function(workspace) {
+                const item = document.createElement('div');
+                item.style.padding = '8px';
+                item.style.borderBottom = '1px solid #eee';
+                item.style.display = 'flex';
+                item.style.justifyContent = 'space-between';
+                item.style.alignItems = 'center';
+                
+                const nameDiv = document.createElement('div');
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = workspace.name || 'Unnamed Workspace';
+                nameSpan.style.fontWeight = 'bold';
+                
+                const taskSpan = document.createElement('span');
+                taskSpan.textContent = workspace.task ? ` (${workspace.task})` : '';
+                taskSpan.style.color = '#666';
+                
+                nameDiv.appendChild(nameSpan);
+                nameDiv.appendChild(taskSpan);
+                
+                const cloneBtn = document.createElement('button');
+                cloneBtn.textContent = 'Clone';
+                cloneBtn.style.padding = '4px 8px';
+                cloneBtn.style.backgroundColor = '#27AE60';
+                cloneBtn.style.color = 'white';
+                cloneBtn.style.border = 'none';
+                cloneBtn.style.borderRadius = '3px';
+                cloneBtn.style.cursor = 'pointer';
+                
+                cloneBtn.addEventListener('click', function() {
+                    copyToClipboard(`git clone ${workspace.clone_url}`, function() {
+                        const originalText = cloneBtn.textContent;
+                        cloneBtn.textContent = 'Copied!';
                         setTimeout(function() {
-                            copyBtn.textContent = 'Copy';
+                            cloneBtn.textContent = originalText;
                         }, 2000);
                     });
                 });
-            }
-        })
-        .catch(error => {
-            console.error('Failed to create workspace:', error);
-            alert(error.message);
-        });
+                
+                item.appendChild(nameDiv);
+                item.appendChild(cloneBtn);
+                list.appendChild(item);
+            });
+            
+            historyContainer.appendChild(list);
+        }
     });
+}
+
+// Add a workspace to history
+function addWorkspaceToHistory(workspace) {
+    chrome.storage.sync.get(['workspaceHistory'], function(data) {
+        let workspaces = data.workspaceHistory || [];
+        
+        // Add new workspace at the beginning
+        workspaces.unshift(workspace);
+        
+        // Limit to 10 workspaces
+        if (workspaces.length > 10) {
+            workspaces = workspaces.slice(0, 10);
+        }
+        
+        // Save back to storage
+        chrome.storage.sync.set({ workspaceHistory: workspaces });
+    });
+}
+
+// Helper function to copy text to clipboard
+function copyToClipboard(text, callback) {
+    navigator.clipboard.writeText(text)
+        .then(callback)
+        .catch(function(err) {
+            console.error('Could not copy text: ', err);
+        });
 }
