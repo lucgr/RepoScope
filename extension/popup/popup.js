@@ -11,12 +11,12 @@ window.onerror = function(message, source, lineno, colno, error) {
 // Display error on page for visibility
 function displayError(title, message) {
     try {
-        const errorDiv = document.createElement('div');
-        errorDiv.style.color = 'red';
-        errorDiv.style.backgroundColor = '#ffeeee';
-        errorDiv.style.padding = '10px';
-        errorDiv.style.margin = '10px';
-        errorDiv.style.border = '1px solid red';
+        const errorDiv = document.createElement("div");
+        errorDiv.style.color = "red";
+        errorDiv.style.backgroundColor = "#ffeeee";
+        errorDiv.style.padding = "10px";
+        errorDiv.style.margin = "10px";
+        errorDiv.style.border = "1px solid red";
         errorDiv.innerHTML = `<strong>${title}:</strong> ${message}`;
         document.body.prepend(errorDiv);
     } catch (e) {
@@ -26,13 +26,13 @@ function displayError(title, message) {
 
 // Show message
 function showMessage(message) {
-    const existingMessage = document.querySelector('.status-message');
+    const existingMessage = document.querySelector(".status-message");
     if (existingMessage) {
         existingMessage.parentNode.removeChild(existingMessage);
     }
     
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'status-message';
+    const messageDiv = document.createElement("div");
+    messageDiv.className = "status-message";
     messageDiv.textContent = message;
     document.body.appendChild(messageDiv);
     
@@ -45,35 +45,35 @@ function showMessage(message) {
 
 // Function to add a repository
 function addRepository() {
-    const urlInput = document.getElementById('new-repo-url');
+    const urlInput = document.getElementById("new-repo-url");
     if (!urlInput) return;
     
     const url = urlInput.value.trim();
     if (!url) {
-        alert('Please enter a repository URL');
+        alert("Please enter a repository URL");
         return;
     }
     
-    if (!url.startsWith('https://gitlab.com/')) {
-        alert('Please enter a valid GitLab repository URL (https://gitlab.com/...)');
+    if (!url.startsWith("https://gitlab.com/")) {
+        alert("Please enter a valid GitLab repository URL (https://gitlab.com/...)");
         return;
     }
     
-    chrome.storage.sync.get(['repoUrls'], function(data) {
+    chrome.storage.sync.get(["repoUrls"], function(data) {
         // Parse existing repos
         const existingRepos = data.repoUrls ? 
-            data.repoUrls.split('\n').filter(u => u.trim()).map(u => u.trim()) : 
+            data.repoUrls.split("\n").filter(u => u.trim()).map(u => u.trim()) : 
             [];
         
         // Check if repo already exists
         if (existingRepos.includes(url)) {
-            alert('This repository is already in the list');
+            alert("This repository is already in the list");
             return;
         }
         
         // Add new repo
         existingRepos.push(url);
-        const updatedRepoUrls = existingRepos.join('\n');
+        const updatedRepoUrls = existingRepos.join("\n");
         
         // Save to storage
         chrome.storage.sync.set({ repoUrls: updatedRepoUrls }, function() {
@@ -82,10 +82,10 @@ function addRepository() {
             updateWorkspaceRepoSelection(updatedRepoUrls);
             
             // Clear input
-            urlInput.value = '';
+            urlInput.value = "";
             
             // Show success message
-            showMessage('Repository added successfully');
+            showMessage("Repository added successfully");
         });
     });
 }
@@ -94,15 +94,15 @@ function addRepository() {
 function removeRepository(url) {
     if (!url) return;
     
-    chrome.storage.sync.get(['repoUrls'], function(data) {
+    chrome.storage.sync.get(["repoUrls"], function(data) {
         // Parse existing repos
         const existingRepos = data.repoUrls ? 
-            data.repoUrls.split('\n').filter(u => u.trim()).map(u => u.trim()) : 
+            data.repoUrls.split("\n").filter(u => u.trim()).map(u => u.trim()) : 
             [];
         
         // Remove repo
         const updatedRepos = existingRepos.filter(r => r !== url);
-        const updatedRepoUrls = updatedRepos.join('\n');
+        const updatedRepoUrls = updatedRepos.join("\n");
         
         // Save to storage
         chrome.storage.sync.set({ repoUrls: updatedRepoUrls }, function() {
@@ -111,50 +111,50 @@ function removeRepository(url) {
             updateWorkspaceRepoSelection(updatedRepoUrls);
             
             // Show success message
-            showMessage('Repository removed');
+            showMessage("Repository removed");
         });
     });
 }
 
 // Function to load repository list
 function loadRepositoryList(repoUrlsString) {
-    const repoList = document.getElementById('repo-list');
+    const repoList = document.getElementById("repo-list");
     if (!repoList) return;
     
-    const tbody = repoList.querySelector('tbody');
+    const tbody = repoList.querySelector("tbody");
     if (!tbody) return;
     
-    const emptyState = document.getElementById('empty-repos');
+    const emptyState = document.getElementById("empty-repos");
     
     // Parse repos
     const repos = repoUrlsString ? 
-        repoUrlsString.split('\n').filter(u => u.trim()).map(u => u.trim()) : 
+        repoUrlsString.split("\n").filter(u => u.trim()).map(u => u.trim()) : 
         [];
     
     // Clear existing items
-    tbody.innerHTML = '';
+    tbody.innerHTML = "";
     
     // Show/hide empty state
     if (emptyState) {
-        emptyState.style.display = repos.length > 0 ? 'none' : 'block';
+        emptyState.style.display = repos.length > 0 ? "none" : "block";
     }
     
     // Add repos to list
     if (repos.length > 0) {
         repos.forEach(function(repo) {
-            const row = document.createElement('tr');
+            const row = document.createElement("tr");
             
             // URL cell
-            const urlCell = document.createElement('td');
+            const urlCell = document.createElement("td");
             urlCell.textContent = repo;
             row.appendChild(urlCell);
             
             // Action cell
-            const actionCell = document.createElement('td');
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'delete-repo-btn';
-            deleteBtn.textContent = 'x';
-            deleteBtn.setAttribute('data-url', repo);
+            const actionCell = document.createElement("td");
+            const deleteBtn = document.createElement("button");
+            deleteBtn.className = "delete-repo-btn";
+            deleteBtn.textContent = "x";
+            deleteBtn.setAttribute("data-url", repo);
             deleteBtn.onclick = function() {
                 removeRepository(repo);
             };
@@ -168,83 +168,83 @@ function loadRepositoryList(repoUrlsString) {
 
 // Update workspace repo selection
 function updateWorkspaceRepoSelection(repoUrlsString) {
-    const container = document.getElementById('workspace-repo-selection');
+    const container = document.getElementById("workspace-repo-selection");
     if (!container) return;
     
-    const emptyState = document.getElementById('empty-workspace-repos');
+    const emptyState = document.getElementById("empty-workspace-repos");
     
     // Parse repos
     const repos = repoUrlsString ? 
-        repoUrlsString.split('\n').filter(u => u.trim()).map(u => u.trim()) : 
+        repoUrlsString.split("\n").filter(u => u.trim()).map(u => u.trim()) : 
         [];
     
     // Clear existing items
-    container.innerHTML = '';
+    container.innerHTML = "";
     
     // Show/hide empty state
     if (emptyState) {
-        emptyState.style.display = repos.length > 0 ? 'none' : 'block';
+        emptyState.style.display = repos.length > 0 ? "none" : "block";
     }
     
     // Apply container styles
-    container.style.maxHeight = '220px';
-    container.style.overflowY = 'auto';
-    container.style.border = '1px solid #ddd';
-    container.style.borderRadius = '4px';
-    container.style.padding = '10px';
-    container.style.marginBottom = '15px';
-    container.style.backgroundColor = '#f9f9f9';
+    container.style.maxHeight = "220px";
+    container.style.overflowY = "auto";
+    container.style.border = "1px solid #ddd";
+    container.style.borderRadius = "4px";
+    container.style.padding = "10px";
+    container.style.marginBottom = "15px";
+    container.style.backgroundColor = "#f9f9f9";
     
     // Table-based layout for better visibility
     if (repos.length > 0) {
-        const table = document.createElement('table');
-        table.style.width = '100%';
-        table.style.borderCollapse = 'collapse';
+        const table = document.createElement("table");
+        table.style.width = "100%";
+        table.style.borderCollapse = "collapse";
         
         repos.forEach(function(repo, index) {
-            const row = document.createElement('tr');
-            row.style.borderBottom = '1px solid #eee';
+            const row = document.createElement("tr");
+            row.style.borderBottom = "1px solid #eee";
             
             // Checkbox cell
-            const checkboxCell = document.createElement('td');
-            checkboxCell.style.width = '30px';
-            checkboxCell.style.padding = '8px 0';
-            checkboxCell.style.verticalAlign = 'top';
+            const checkboxCell = document.createElement("td");
+            checkboxCell.style.width = "30px";
+            checkboxCell.style.padding = "8px 0";
+            checkboxCell.style.verticalAlign = "top";
             
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.id = 'repo-' + index;
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.id = "repo-" + index;
             checkbox.value = repo;
             checkbox.checked = true;
-            checkbox.style.margin = '3px 0 0 0';
+            checkbox.style.margin = "3px 0 0 0";
             
             checkboxCell.appendChild(checkbox);
             
             // Label cell
-            const labelCell = document.createElement('td');
-            labelCell.style.padding = '8px 5px';
+            const labelCell = document.createElement("td");
+            labelCell.style.padding = "8px 5px";
             
-            const label = document.createElement('label');
-            label.htmlFor = 'repo-' + index;
-            label.style.cursor = 'pointer';
-            label.style.display = 'block';
+            const label = document.createElement("label");
+            label.htmlFor = "repo-" + index;
+            label.style.cursor = "pointer";
+            label.style.display = "block";
             
             // Extract repo name
-            const repoName = repo.split('/').pop().replace('.git', '');
+            const repoName = repo.split("/").pop().replace(".git", "");
             
             // Bold repo name
-            const nameDiv = document.createElement('div');
+            const nameDiv = document.createElement("div");
             nameDiv.textContent = repoName;
-            nameDiv.style.fontWeight = 'bold';
-            nameDiv.style.marginBottom = '2px';
+            nameDiv.style.fontWeight = "bold";
+            nameDiv.style.marginBottom = "2px";
             label.appendChild(nameDiv);
             
             // Smaller URL text
-            const urlDiv = document.createElement('div');
+            const urlDiv = document.createElement("div");
             urlDiv.textContent = repo;
-            urlDiv.style.fontSize = '11px';
-            urlDiv.style.color = '#666';
-            urlDiv.style.wordBreak = 'break-all';
+            urlDiv.style.fontSize = "11px";
+            urlDiv.style.color = "#666";
+            urlDiv.style.wordBreak = "break-all";
             label.appendChild(urlDiv);
             
             labelCell.appendChild(label);
@@ -263,26 +263,26 @@ function updateWorkspaceRepoSelection(repoUrlsString) {
 
 // Function to save settings
 function saveSettings() {
-    const backendUrl = document.getElementById('backend-url')?.value || '';
-    const gitlabToken = document.getElementById('gitlab-token')?.value || '';
+    const backendUrl = document.getElementById("backend-url")?.value || "";
+    const gitlabToken = document.getElementById("gitlab-token")?.value || "";
     const repoUrls = getRepositoryUrls();
     
     if (gitlabToken) {
         // Validate token
-        fetch('https://gitlab.com/api/v4/user', {
+        fetch("https://gitlab.com/api/v4/user", {
             headers: {
-                'Authorization': 'Bearer ' + gitlabToken
+                "Authorization": "Bearer " + gitlabToken
             }
         })
         .then(response => {
             if (!response.ok) {
-                throw new Error('Invalid token: ' + response.status);
+                throw new Error("Invalid token: " + response.status);
             }
             return response.json();
         })
         .then(user => {
             if (!user.username) {
-                throw new Error('Invalid user data');
+                throw new Error("Invalid user data");
             }
             
             // Save all settings with username
@@ -292,19 +292,19 @@ function saveSettings() {
                 repoUrls: repoUrls,
                 username: user.username
             }, function() {
-                showMessage('Settings saved successfully!');
+                showMessage("Settings saved successfully!");
             });
         })
         .catch(error => {
-            console.error('Token validation error:', error);
-            alert('GitLab token is invalid. Please check and try again.');
+            console.error("Token validation error:", error);
+            alert("GitLab token is invalid. Please check and try again.");
             
             // Save other settings
             chrome.storage.sync.set({
                 backendUrl: backendUrl,
                 repoUrls: repoUrls
             }, function() {
-                showMessage('Settings saved (without token)');
+                showMessage("Settings saved (without token)");
             });
         });
     } else {
@@ -313,14 +313,14 @@ function saveSettings() {
             backendUrl: backendUrl,
             repoUrls: repoUrls
         }, function() {
-            showMessage('Settings saved');
+            showMessage("Settings saved");
         });
     }
 }
 
 // Function to get repository URLs from the table
 function getRepositoryUrls() {
-    const rows = document.querySelectorAll('#repo-list tbody tr');
+    const rows = document.querySelectorAll("#repo-list tbody tr");
     const urls = [];
     
     rows.forEach(function(row) {
@@ -332,34 +332,34 @@ function getRepositoryUrls() {
         }
     });
     
-    return urls.join('\n');
+    return urls.join("\n");
 }
 
 // Handle tab switching
 function setupTabNavigation() {
-    const tabButtons = document.querySelectorAll('.tab-button');
-    const tabSections = document.querySelectorAll('.tab-section');
+    const tabButtons = document.querySelectorAll(".tab-button");
+    const tabSections = document.querySelectorAll(".tab-section");
     
     tabButtons.forEach(function(button) {
-        button.addEventListener('click', function() {
+        button.addEventListener("click", function() {
             // Remove active class from all tabs
             tabButtons.forEach(function(btn) {
-                btn.classList.remove('active');
+                btn.classList.remove("active");
             });
             
             tabSections.forEach(function(section) {
-                section.classList.remove('active');
+                section.classList.remove("active");
             });
             
             // Add active class to clicked tab
-            this.classList.add('active');
+            this.classList.add("active");
             
             // Show corresponding section
-            const tabId = this.getAttribute('data-tab');
+            const tabId = this.getAttribute("data-tab");
             if (tabId) {
                 const section = document.getElementById(tabId);
                 if (section) {
-                    section.classList.add('active');
+                    section.classList.add("active");
                 }
             }
         });
@@ -368,70 +368,70 @@ function setupTabNavigation() {
 
 // Initialize popup - Called when DOM is ready
 function initializePopup() {
-    console.log('Initializing popup');
+    console.log("Initializing popup");
     
     // 1. Setup tab navigation
     setupTabNavigation();
     
     // 2. Setup Add Repository button
-    const addRepoBtn = document.getElementById('add-repo-btn');
+    const addRepoBtn = document.getElementById("add-repo-btn");
     if (addRepoBtn) {
-        addRepoBtn.addEventListener('click', addRepository);
+        addRepoBtn.addEventListener("click", addRepository);
     }
     
     // 3. Setup Enter key for repo URL input
-    const repoUrlInput = document.getElementById('new-repo-url');
+    const repoUrlInput = document.getElementById("new-repo-url");
     if (repoUrlInput) {
-        repoUrlInput.addEventListener('keyup', function(event) {
-            if (event.key === 'Enter' && addRepoBtn) {
+        repoUrlInput.addEventListener("keyup", function(event) {
+            if (event.key === "Enter" && addRepoBtn) {
                 addRepoBtn.click();
             }
         });
     }
     
     // 4. Setup Save Settings button
-    const saveSettingsBtn = document.getElementById('save-settings');
+    const saveSettingsBtn = document.getElementById("save-settings");
     if (saveSettingsBtn) {
-        saveSettingsBtn.addEventListener('click', saveSettings);
+        saveSettingsBtn.addEventListener("click", saveSettings);
     }
     
     // 5. Setup Refresh PRs button
-    const refreshPRsBtn = document.getElementById('refresh-prs-btn');
+    const refreshPRsBtn = document.getElementById("refresh-prs-btn");
     if (refreshPRsBtn) {
-        refreshPRsBtn.addEventListener('click', loadUnifiedPRs);
+        refreshPRsBtn.addEventListener("click", loadUnifiedPRs);
     }
     
     // 6. Setup Create Workspace button
-    const createWorkspaceBtn = document.getElementById('create-workspace-btn');
+    const createWorkspaceBtn = document.getElementById("create-workspace-btn");
     if (createWorkspaceBtn) {
-        createWorkspaceBtn.addEventListener('click', createVirtualWorkspace);
+        createWorkspaceBtn.addEventListener("click", createVirtualWorkspace);
     }
     
     // 7. Setup Branch Name input to extract task name
-    const branchNameInput = document.getElementById('workspace-branch-name');
+    const branchNameInput = document.getElementById("workspace-branch-name");
     if (branchNameInput) {
-        branchNameInput.addEventListener('input', extractTaskFromBranch);
+        branchNameInput.addEventListener("input", extractTaskFromBranch);
     }
     
     // 8. Load saved settings
-    chrome.storage.sync.get(['backendUrl', 'gitlabToken', 'repoUrls'], function(data) {
+    chrome.storage.sync.get(["backendUrl", "gitlabToken", "repoUrls"], function(data) {
         // Set backend URL
-        const backendUrlInput = document.getElementById('backend-url');
+        const backendUrlInput = document.getElementById("backend-url");
         if (backendUrlInput && data.backendUrl) {
             backendUrlInput.value = data.backendUrl;
         }
         
         // Set GitLab token
-        const gitlabTokenInput = document.getElementById('gitlab-token');
+        const gitlabTokenInput = document.getElementById("gitlab-token");
         if (gitlabTokenInput && data.gitlabToken) {
             gitlabTokenInput.value = data.gitlabToken;
         }
         
         // Load repository list
-        loadRepositoryList(data.repoUrls || '');
+        loadRepositoryList(data.repoUrls || "");
         
         // Update workspace repo selection
-        updateWorkspaceRepoSelection(data.repoUrls || '');
+        updateWorkspaceRepoSelection(data.repoUrls || "");
         
         // Load unified PRs
         loadUnifiedPRs();
@@ -442,20 +442,20 @@ function initializePopup() {
 }
 
 // Wait for DOM to be ready
-document.addEventListener('DOMContentLoaded', initializePopup);
+document.addEventListener("DOMContentLoaded", initializePopup);
 
 // Load unified PRs from the backend
 function loadUnifiedPRs() {
-    console.log('Loading unified PRs');
+    console.log("Loading unified PRs");
     
     // Show loading indicator
-    const contentArea = document.getElementById('unified-prs-content');
+    const contentArea = document.getElementById("unified-prs-content");
     if (contentArea) {
-        contentArea.innerHTML = '<div class="loading">Loading unified PRs...</div>';
+        contentArea.innerHTML = "<div class=\"loading\">Loading unified PRs...</div>";
     }
     
     // Get settings from storage
-    chrome.storage.sync.get(['backendUrl', 'repoUrls', 'gitlabToken'], function(data) {
+    chrome.storage.sync.get(["backendUrl", "repoUrls", "gitlabToken"], function(data) {
         const backendUrl = data.backendUrl;
         const repoUrls = data.repoUrls;
         const gitlabToken = data.gitlabToken;
@@ -463,32 +463,32 @@ function loadUnifiedPRs() {
         // Check if all required settings are present
         if (!backendUrl || !repoUrls || !gitlabToken) {
             if (contentArea) {
-                contentArea.innerHTML = '<div class="error">Please configure Backend URL, Repository URLs, and GitLab Token in the Settings tab.</div>';
+                contentArea.innerHTML = "<div class=\"error\">Please configure Backend URL, Repository URLs, and GitLab Token in the Settings tab.</div>";
             }
-            console.error('Cannot load unified PRs: Missing settings', { backendUrl, repoUrls, gitlabToken });
+            console.error("Cannot load unified PRs: Missing settings", { backendUrl, repoUrls, gitlabToken });
             return;
         }
 
         // Create query string from repository URLs
-        const repoUrlsArray = repoUrls.split('\n').filter(url => url.trim().length > 0);
+        const repoUrlsArray = repoUrls.split("\n").filter(url => url.trim().length > 0);
         if (repoUrlsArray.length === 0) {
             if (contentArea) {
-                contentArea.innerHTML = '<div class="error">No repository URLs specified.</div>';
+                contentArea.innerHTML = "<div class=\"error\">No repository URLs specified.</div>";
             }
             return;
         }
         
-        const repoQuery = repoUrlsArray.map(url => `repo_urls=${encodeURIComponent(url)}`).join('&');
+        const repoQuery = repoUrlsArray.map(url => `repo_urls=${encodeURIComponent(url)}`).join("&");
         
         // Fetch unified PRs from backend
         const apiUrl = `${backendUrl}/api/prs/unified?${repoQuery}`;
-        console.log('Fetching unified PRs from:', apiUrl);
+        console.log("Fetching unified PRs from:", apiUrl);
         
         fetch(apiUrl, {
-            method: 'GET',
+            method: "GET",
             headers: {
-                'Content-Type': 'application/json',
-                'x-gitlab-token': gitlabToken
+                "Content-Type": "application/json",
+                "x-gitlab-token": gitlabToken
             }
         })
         .then(response => {
@@ -498,7 +498,7 @@ function loadUnifiedPRs() {
             return response.json();
         })
         .then(data => {
-            console.log('Unified PRs data structure:', JSON.stringify(data, null, 2));
+            console.log("Unified PRs data structure:", JSON.stringify(data, null, 2));
             
             // First show the UI with the data we have
             updateUnifiedPRsUI(data);
@@ -507,7 +507,7 @@ function loadUnifiedPRs() {
             fetchApprovalStatuses(data, gitlabToken);
         })
         .catch(error => {
-            console.error('Failed to fetch unified PRs:', error);
+            console.error("Failed to fetch unified PRs:", error);
             if (contentArea) {
                 contentArea.innerHTML = `<div class="error">Failed to load unified PRs: ${error.message}</div>`;
             }
@@ -541,9 +541,9 @@ function fetchApprovalStatuses(data, gitlabToken) {
             
             // Fetch approval data
             fetch(apiUrl, {
-                method: 'GET',
+                method: "GET",
                 headers: {
-                    'Authorization': `Bearer ${gitlabToken}`
+                    "Authorization": `Bearer ${gitlabToken}`
                 }
             })
             .then(response => {
@@ -602,15 +602,15 @@ function updatePrApprovalStatus(pr) {
     if (!prItem) return;
     
     // Update the approve button
-    const approveBtn = prItem.querySelector('.approve-btn');
+    const approveBtn = prItem.querySelector(".approve-btn");
     if (approveBtn) {
         if (pr.isApproved) {
             approveBtn.disabled = true;
-            approveBtn.textContent = 'Approved';
+            approveBtn.textContent = "Approved";
         } else {
             // Make sure it's not incorrectly marked as approved
             approveBtn.disabled = false;
-            approveBtn.textContent = 'Approve';
+            approveBtn.textContent = "Approve";
         }
     }
 }
@@ -618,25 +618,25 @@ function updatePrApprovalStatus(pr) {
 // Check if all PRs in a task are approved and update UI
 function updateTaskApprovalStatus(taskName) {
     // Find the task group in the DOM
-    const taskGroups = document.querySelectorAll('.task-group');
+    const taskGroups = document.querySelectorAll(".task-group");
     
     // Go through each task group
     taskGroups.forEach(taskGroup => {
-        const header = taskGroup.querySelector('.task-header h3');
+        const header = taskGroup.querySelector(".task-header h3");
         if (!header || !header.textContent.includes(taskName)) return;
         
         // Check if all PR buttons are disabled (meaning they're all approved)
-        const allButtons = taskGroup.querySelectorAll('.approve-btn');
-        const notApprovedButtons = taskGroup.querySelectorAll('.approve-btn:not([disabled])');
+        const allButtons = taskGroup.querySelectorAll(".approve-btn");
+        const notApprovedButtons = taskGroup.querySelectorAll(".approve-btn:not([disabled])");
         
         // Only update if all PRs are approved and there's at least one PR
         if (notApprovedButtons.length === 0 && allButtons.length > 0) {
             // All PRs are approved, replace the "Approve All" button with "All PRs approved" message
-            const approveAllBtn = taskGroup.querySelector('.approve-all-btn');
+            const approveAllBtn = taskGroup.querySelector(".approve-all-btn");
             if (approveAllBtn) {
-                const allApprovedDiv = document.createElement('div');
-                allApprovedDiv.className = 'all-approved';
-                allApprovedDiv.textContent = 'All PRs approved';
+                const allApprovedDiv = document.createElement("div");
+                allApprovedDiv.className = "all-approved";
+                allApprovedDiv.textContent = "All PRs approved";
                 approveAllBtn.parentNode.replaceChild(allApprovedDiv, approveAllBtn);
             }
         }
@@ -645,12 +645,12 @@ function updateTaskApprovalStatus(taskName) {
 
 // Update UI with unified PRs
 function updateUnifiedPRsUI(data) {
-    const contentArea = document.getElementById('unified-prs-content');
+    const contentArea = document.getElementById("unified-prs-content");
     if (!contentArea) return;
     
     // Handle case where no tasks are returned
     if (!data) {
-        contentArea.innerHTML = '<div class="no-prs">No tasks or pull requests found.</div>';
+        contentArea.innerHTML = "<div class=\"no-prs\">No tasks or pull requests found.</div>";
         return;
     }
     
@@ -658,7 +658,7 @@ function updateUnifiedPRsUI(data) {
     const tasks = Array.isArray(data) ? data : [data];
     
     if (tasks.length === 0) {
-        contentArea.innerHTML = '<div class="no-prs">No tasks found.</div>';
+        contentArea.innerHTML = "<div class=\"no-prs\">No tasks found.</div>";
         return;
     }
     
@@ -722,7 +722,7 @@ function updateUnifiedPRsUI(data) {
     
     // Process each task
     for (const task of tasks) {
-        const taskId = task.task_name || 'Unknown Task';
+        const taskId = task.task_name || "Unknown Task";
         const prs = task.prs || [];
         
         if (prs.length === 0) {
@@ -743,13 +743,13 @@ function updateUnifiedPRsUI(data) {
         
         for (const pr of prs) {
             // Extract required fields with fallbacks
-            const id = pr.id || '';
-            const title = pr.title || 'Untitled PR';
-            const repo = pr.repository_name || 'Unknown Repo';
-            const web_url = pr.web_url || '#';
+            const id = pr.id || "";
+            const title = pr.title || "Untitled PR";
+            const repo = pr.repository_name || "Unknown Repo";
+            const web_url = pr.web_url || "#";
             
             // Handle pipeline status
-            const pipelineStatus = pr.pipeline_status || 'none';
+            const pipelineStatus = pr.pipeline_status || "none";
             const pipelineClass = getPipelineStatusClass(pipelineStatus);
             const pipelineTitle = getPipelineStatusTitle(pipelineStatus);
             const pipelineLabel = getPipelineStatusLabel(pipelineStatus);
@@ -766,7 +766,7 @@ function updateUnifiedPRsUI(data) {
                         </span>
                     </div>
                     <div class="pr-actions">
-                        <button class="approve-btn" data-pr-id="${id}" data-repo-url="${pr.repository_url || ''}">
+                        <button class="approve-btn" data-pr-id="${id}" data-repo-url="${pr.repository_url || ""}">
                             Approve
                         </button>
                     </div>
@@ -780,16 +780,16 @@ function updateUnifiedPRsUI(data) {
         `;
     }
     
-    if (html === '') {
-        contentArea.innerHTML = '<div class="no-prs">No pull requests found in any task.</div>';
+    if (html === "") {
+        contentArea.innerHTML = "<div class=\"no-prs\">No pull requests found in any task.</div>";
     } else {
         contentArea.innerHTML = html;
     }
     
     // Add event listeners for approve buttons
-    const approveBtns = contentArea.querySelectorAll('.approve-btn:not([disabled])');
+    const approveBtns = contentArea.querySelectorAll(".approve-btn:not([disabled])");
     approveBtns.forEach(btn => {
-        btn.addEventListener('click', function() {
+        btn.addEventListener("click", function() {
             const prId = this.dataset.prId;
             const repoUrl = this.dataset.repoUrl;
             approvePR(repoUrl, prId, this);
@@ -797,9 +797,9 @@ function updateUnifiedPRsUI(data) {
     });
     
     // Add event listeners for approve all buttons
-    const approveAllBtns = contentArea.querySelectorAll('.approve-all-btn');
+    const approveAllBtns = contentArea.querySelectorAll(".approve-all-btn");
     approveAllBtns.forEach(btn => {
-        btn.addEventListener('click', function() {
+        btn.addEventListener("click", function() {
             const taskId = this.dataset.task;
             approveAllPRs(taskId);
         });
@@ -809,37 +809,37 @@ function updateUnifiedPRsUI(data) {
 // Approve a single PR
 function approvePR(repoUrl, prId, button) {
     button.disabled = true;
-    button.textContent = 'Approving...';
+    button.textContent = "Approving...";
     
-    chrome.storage.sync.get(['gitlabToken', 'backendUrl'], function(data) {
+    chrome.storage.sync.get(["gitlabToken", "backendUrl"], function(data) {
         const gitlabToken = data.gitlabToken;
         const backendUrl = data.backendUrl;
         
         if (!gitlabToken || !backendUrl) {
-            alert('Please configure Backend URL and GitLab Token in Settings');
+            alert("Please configure Backend URL and GitLab Token in Settings");
             button.disabled = false;
-            button.textContent = 'Approve';
+            button.textContent = "Approve";
             return;
         }
         
         // Find the task name from the task header
-        const prItem = button.closest('.pr-item');
-        const taskGroup = prItem ? prItem.closest('.task-group') : null;
-        const header = taskGroup ? taskGroup.querySelector('.task-header h3') : null;
+        const prItem = button.closest(".pr-item");
+        const taskGroup = prItem ? prItem.closest(".task-group") : null;
+        const header = taskGroup ? taskGroup.querySelector(".task-header h3") : null;
         const taskName = header ? header.textContent.trim() : null;
         
         if (!taskName) {
-            console.error('Could not determine task name for approval');
+            console.error("Could not determine task name for approval");
             button.disabled = false;
-            button.textContent = 'Approve';
+            button.textContent = "Approve";
             return;
         }
         
         fetch(`${backendUrl}/api/prs/approve?task_name=${encodeURIComponent(taskName)}`, {
-            method: 'POST',
+            method: "POST",
             headers: {
-                'Content-Type': 'application/json',
-                'x-gitlab-token': gitlabToken
+                "Content-Type": "application/json",
+                "x-gitlab-token": gitlabToken
             },
             body: JSON.stringify({
                 repo_urls: [repoUrl]
@@ -852,18 +852,18 @@ function approvePR(repoUrl, prId, button) {
             return response.json();
         })
         .then(data => {
-            console.log('PR approved:', data);
-            button.textContent = 'Approved';
+            console.log("PR approved:", data);
+            button.textContent = "Approved";
             button.disabled = true;
             
             // Update UI to reflect approval
-            const prItem = button.closest('.pr-item');
+            const prItem = button.closest(".pr-item");
             if (prItem) {
-                const approvalStatus = prItem.querySelector('.approval-status');
+                const approvalStatus = prItem.querySelector(".approval-status");
                 if (approvalStatus) {
-                    approvalStatus.className = 'approval-status approved';
-                    approvalStatus.innerHTML = '✓';
-                    approvalStatus.title = 'Approved';
+                    approvalStatus.className = "approval-status approved";
+                    approvalStatus.innerHTML = "✓";
+                    approvalStatus.title = "Approved";
                 }
             }
             
@@ -871,9 +871,9 @@ function approvePR(repoUrl, prId, button) {
             checkAllTaskPRsApproved(button);
         })
         .catch(error => {
-            console.error('Failed to approve PR:', error);
+            console.error("Failed to approve PR:", error);
             button.disabled = false;
-            button.textContent = 'Approve';
+            button.textContent = "Approve";
             alert(`Failed to approve PR: ${error.message}`);
         });
     });
@@ -881,22 +881,22 @@ function approvePR(repoUrl, prId, button) {
 
 // Check if all PRs in a task group are approved
 function checkAllTaskPRsApproved(button) {
-    const prItem = button.closest('.pr-item');
+    const prItem = button.closest(".pr-item");
     if (!prItem) return;
     
-    const taskGroup = prItem.closest('.task-group');
+    const taskGroup = prItem.closest(".task-group");
     if (!taskGroup) return;
     
     // Check if all approve buttons are disabled (meaning they're all approved)
-    const notApprovedButtons = taskGroup.querySelectorAll('.approve-btn:not([disabled])');
+    const notApprovedButtons = taskGroup.querySelectorAll(".approve-btn:not([disabled])");
     
     if (notApprovedButtons.length === 0) {
         // All PRs are approved, replace the "Approve All" button with "All PRs approved" message
-        const approveAllBtn = taskGroup.querySelector('.approve-all-btn');
+        const approveAllBtn = taskGroup.querySelector(".approve-all-btn");
         if (approveAllBtn) {
-            const allApprovedDiv = document.createElement('div');
-            allApprovedDiv.className = 'all-approved';
-            allApprovedDiv.textContent = 'All PRs approved';
+            const allApprovedDiv = document.createElement("div");
+            allApprovedDiv.className = "all-approved";
+            allApprovedDiv.textContent = "All PRs approved";
             approveAllBtn.parentNode.replaceChild(allApprovedDiv, approveAllBtn);
         }
     }
@@ -905,72 +905,72 @@ function checkAllTaskPRsApproved(button) {
 // Approve all PRs in a task group
 function approveAllPRs(taskId) {
     // Find the task group using our helper function
-    const taskHeader = findElementWithText('.task-group .task-header h3', taskId);
+    const taskHeader = findElementWithText(".task-group .task-header h3", taskId);
     if (!taskHeader) {
         console.error(`Task header with ID ${taskId} not found`);
         return;
     }
     
-    const taskGroup = taskHeader.closest('.task-group');
+    const taskGroup = taskHeader.closest(".task-group");
     if (!taskGroup) {
-        console.error('Could not find task group container');
+        console.error("Could not find task group container");
         return;
     }
     
-    const approveAllBtn = taskGroup.querySelector('.approve-all-btn');
+    const approveAllBtn = taskGroup.querySelector(".approve-all-btn");
     if (approveAllBtn) {
         approveAllBtn.disabled = true;
-        approveAllBtn.textContent = 'Approving...';
+        approveAllBtn.textContent = "Approving...";
     }
     
     // Get all repository URLs from the task group
     const repoUrls = [];
-    const approveBtns = taskGroup.querySelectorAll('.approve-btn:not([disabled])');
+    const approveBtns = taskGroup.querySelectorAll(".approve-btn:not([disabled])");
     approveBtns.forEach(btn => {
         const repoUrl = btn.dataset.repoUrl;
         if (repoUrl && !repoUrls.includes(repoUrl)) {
             repoUrls.push(repoUrl);
         }
         btn.disabled = true;
-        btn.textContent = 'Approving...';
+        btn.textContent = "Approving...";
     });
     
     if (repoUrls.length === 0) {
-        console.error('No repository URLs found in task group');
+        console.error("No repository URLs found in task group");
         if (approveAllBtn) {
             approveAllBtn.disabled = false;
-            approveAllBtn.textContent = 'Approve All';
+            approveAllBtn.textContent = "Approve All";
         }
         approveBtns.forEach(btn => {
             btn.disabled = false;
-            btn.textContent = 'Approve';
+            btn.textContent = "Approve";
         });
         return;
     }
     
     // Make a single API call to approve all PRs for this task
-    chrome.storage.sync.get(['gitlabToken', 'backendUrl'], function(data) {
+    chrome.storage.sync.get(["gitlabToken", "backendUrl"], function(data) {
         const gitlabToken = data.gitlabToken;
         const backendUrl = data.backendUrl;
         
         if (!gitlabToken || !backendUrl) {
-            alert('Please configure Backend URL and GitLab Token in Settings');
+            alert("Please configure Backend URL and GitLab Token in Settings");
             if (approveAllBtn) {
                 approveAllBtn.disabled = false;
-                approveAllBtn.textContent = 'Approve All';
+                approveAllBtn.textContent = "Approve All";
             }
             approveBtns.forEach(btn => {
                 btn.disabled = false;
-                btn.textContent = 'Approve';
+                btn.textContent = "Approve";
             });
             return;
         }
         
         fetch(`${backendUrl}/api/prs/approve?task_name=${encodeURIComponent(taskId)}`, {
-            method: 'POST',
+            method: "POST",
             headers: {
-                'Content-Type': 'application/json',
-                'x-gitlab-token': gitlabToken
+                "Content-Type": "application/json",
+                "x-gitlab-token": gitlabToken
             },
             body: JSON.stringify({
                 repo_urls: repoUrls
@@ -983,27 +983,27 @@ function approveAllPRs(taskId) {
             return response.json();
         })
         .then(data => {
-            console.log('All PRs approved:', data);
+            console.log("All PRs approved:", data);
             if (approveAllBtn) {
-                approveAllBtn.textContent = 'All Approved';
+                approveAllBtn.textContent = "All Approved";
                 approveAllBtn.disabled = false;
             }
             approveBtns.forEach(btn => {
                 btn.disabled = false;
-                btn.textContent = 'Approve';
+                btn.textContent = "Approve";
             });
             
             // Update UI to reflect approval
-            const prItems = document.querySelectorAll('.pr-item');
+            const prItems = document.querySelectorAll(".pr-item");
             prItems.forEach(item => {
                 const prId = item.dataset.prId;
                 const pr = data.find(p => p.id === prId);
                 if (pr) {
-                    const approvalStatus = item.querySelector('.approval-status');
+                    const approvalStatus = item.querySelector(".approval-status");
                     if (approvalStatus) {
-                        approvalStatus.className = 'approval-status approved';
-                        approvalStatus.innerHTML = '✓';
-                        approvalStatus.title = 'Approved';
+                        approvalStatus.className = "approval-status approved";
+                        approvalStatus.innerHTML = "✓";
+                        approvalStatus.title = "Approved";
                     }
                 }
             });
@@ -1020,14 +1020,14 @@ function approveAllPRs(taskId) {
             loadWorkspaceHistory();
         })
         .catch(error => {
-            console.error('Failed to approve all PRs:', error);
+            console.error("Failed to approve all PRs:", error);
             if (approveAllBtn) {
                 approveAllBtn.disabled = false;
-                approveAllBtn.textContent = 'Approve All';
+                approveAllBtn.textContent = "Approve All";
             }
             approveBtns.forEach(btn => {
                 btn.disabled = false;
-                btn.textContent = 'Approve';
+                btn.textContent = "Approve";
             });
         });
     });
@@ -1046,17 +1046,17 @@ function findElementWithText(selector, text) {
 
 // Helper function to get pipeline status class
 function getPipelineStatusClass(status) {
-    if (!status || status === 'none' || status === 'null') return 'none';
+    if (!status || status === "none" || status === "null") return "none";
     
     switch(status.toLowerCase()) {
-        case 'success':
-        case 'passed':
-            return 'success';
-        case 'failed':
-            return 'failed';
-        case 'running':
-        case 'pending':
-            return 'running';
+        case "success":
+        case "passed":
+            return "success";
+        case "failed":
+            return "failed";
+        case "running":
+        case "pending":
+            return "running";
         default:
             return status.toLowerCase();
     }
@@ -1064,18 +1064,18 @@ function getPipelineStatusClass(status) {
 
 // Helper function to get pipeline status title
 function getPipelineStatusTitle(status) {
-    if (!status || status === 'none' || status === 'null') return 'No pipeline';
+    if (!status || status === "none" || status === "null") return "No pipeline";
     
     switch(status.toLowerCase()) {
-        case 'success':
-        case 'passed':
-            return 'Pipeline: Success';
-        case 'failed':
-            return 'Pipeline: Failed';
-        case 'running':
-            return 'Pipeline: Running';
-        case 'pending':
-            return 'Pipeline: Pending';
+        case "success":
+        case "passed":
+            return "Pipeline: Success";
+        case "failed":
+            return "Pipeline: Failed";
+        case "running":
+            return "Pipeline: Running";
+        case "pending":
+            return "Pipeline: Pending";
         default:
             return `Pipeline: ${status}`;
     }
@@ -1083,18 +1083,18 @@ function getPipelineStatusTitle(status) {
 
 // Helper function to get pipeline status label
 function getPipelineStatusLabel(status) {
-    if (!status || status === 'none' || status === 'null') return 'No CI';
+    if (!status || status === "none" || status === "null") return "No CI";
     
     switch(status.toLowerCase()) {
-        case 'success':
-        case 'passed':
-            return 'CI: Success';
-        case 'failed':
-            return 'CI: Failed';
-        case 'running':
-            return 'CI: Running';
-        case 'pending':
-            return 'CI: Pending';
+        case "success":
+        case "passed":
+            return "CI: Success";
+        case "failed":
+            return "CI: Failed";
+        case "running":
+            return "CI: Running";
+        case "pending":
+            return "CI: Pending";
         default:
             return `CI: ${status}`;
     }
@@ -1102,9 +1102,9 @@ function getPipelineStatusLabel(status) {
 
 // Extract task name from branch name
 function extractTaskFromBranch() {
-    const branchInput = document.getElementById('workspace-branch-name');
-    const taskInput = document.getElementById('workspace-task-name');
-    const workspaceNameInput = document.getElementById('workspace-name');
+    const branchInput = document.getElementById("workspace-branch-name");
+    const taskInput = document.getElementById("workspace-task-name");
+    const workspaceNameInput = document.getElementById("workspace-name");
     
     if (!branchInput || !taskInput) return;
     
@@ -1117,7 +1117,7 @@ function extractTaskFromBranch() {
         /([A-Za-z]+-\d+)/  // ABC-123 anywhere in the string
     ];
     
-    let taskName = '';
+    let taskName = "";
     for (const pattern of patterns) {
         const match = branchName.match(pattern);
         if (match && match[1]) {
@@ -1137,29 +1137,29 @@ function extractTaskFromBranch() {
 // Helper function to ensure workspace name is in URL
 function ensureWorkspaceNameInUrl(url, name) {
     // If URL already ends with the workspace name, return as is
-    if (url.endsWith('/' + name) || url.endsWith('/' + name + '.git')) {
+    if (url.endsWith("/" + name) || url.endsWith("/" + name + ".git")) {
         return url;
     }
     
     // Otherwise force the workspace name by constructing a new URL
     // Extract base URL up to the last segment
-    const urlParts = url.split('/');
+    const urlParts = url.split("/");
     urlParts.pop(); // Remove the last segment (likely the task name)
-    return urlParts.join('/') + '/' + name;
+    return urlParts.join("/") + "/" + name;
 }
 
 // Create a properly formatted git clone URL
 function createFullCloneUrl(baseUrl, workspaceName) {
     // Make sure baseUrl is a valid URL with protocol
-    if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
-        baseUrl = 'https://' + baseUrl.replace(/^\/+/, '');
+    if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
+        baseUrl = "https://" + baseUrl.replace(/^\/+/, "");
     }
     
     // Ensure there's no trailing slash on baseUrl
-    baseUrl = baseUrl.replace(/\/+$/, '');
+    baseUrl = baseUrl.replace(/\/+$/, "");
     
     // Create path with workspace name - ensure it starts with a single slash
-    const path = '/workspace/' + workspaceName.replace(/^\/+/, '');
+    const path = "/workspace/" + workspaceName.replace(/^\/+/, "");
     
     return baseUrl + path;
 }
@@ -1170,19 +1170,19 @@ function ensureValidCloneUrl(url, baseUrl, name) {
     console.log("Base URL:", baseUrl);
     
     // Check if it's a relative URL (starts with /) or just a name
-    if (url.startsWith('/') || !url.includes('/')) {
+    if (url.startsWith("/") || !url.includes("/")) {
         console.log("Converting relative or simple name to full URL");
         return createFullCloneUrl(baseUrl, name);
     }
     
     // If the URL doesn't have a protocol but has a hostname structure
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
         // Don't just add https:// - make sure it's a full URL with the backend hostname
-        if (!url.startsWith(baseUrl.replace(/^https?:\/\//, ''))) {
+        if (!url.startsWith(baseUrl.replace(/^https?:\/\//, ""))) {
             console.log("URL doesn't contain backend hostname, using backend URL instead");
             return createFullCloneUrl(baseUrl, name);
         }
-        url = 'https://' + url;
+        url = "https://" + url;
     }
     
     // Ensure the workspace name is in the URL
@@ -1191,15 +1191,15 @@ function ensureValidCloneUrl(url, baseUrl, name) {
 
 // Create Virtual Workspace
 function createVirtualWorkspace() {
-    const workspaceNameInput = document.getElementById('workspace-name');
-    const branchInput = document.getElementById('workspace-branch-name');
-    const taskInput = document.getElementById('workspace-task-name');
-    const resultDiv = document.getElementById('workspace-result');
-    const cloneCommandEl = document.getElementById('clone-command');
-    const createBtn = document.getElementById('create-workspace-btn');
+    const workspaceNameInput = document.getElementById("workspace-name");
+    const branchInput = document.getElementById("workspace-branch-name");
+    const taskInput = document.getElementById("workspace-task-name");
+    const resultDiv = document.getElementById("workspace-result");
+    const cloneCommandEl = document.getElementById("clone-command");
+    const createBtn = document.getElementById("create-workspace-btn");
     
     if (!workspaceNameInput || !branchInput || !taskInput || !resultDiv || !cloneCommandEl || !createBtn) {
-        console.error('Missing required elements for workspace creation');
+        console.error("Missing required elements for workspace creation");
         return;
     }
     
@@ -1208,51 +1208,51 @@ function createVirtualWorkspace() {
     const taskName = taskInput.value.trim();
     
     if (!workspaceName) {
-        alert('Please enter a workspace name');
+        alert("Please enter a workspace name");
         return;
     }
     
     if (!branchName) {
-        alert('Please enter a branch name');
+        alert("Please enter a branch name");
         return;
     }
     
     if (!taskName) {
-        alert('Could not extract task name from branch. Please use format feature/ABC-123');
+        alert("Could not extract task name from branch. Please use format feature/ABC-123");
         return;
     }
     
     // Get selected repositories
     const selectedRepos = [];
-    const checkboxes = document.querySelectorAll('#workspace-repo-selection input[type="checkbox"]:checked');
+    const checkboxes = document.querySelectorAll("#workspace-repo-selection input[type=\"checkbox\"]:checked");
     checkboxes.forEach(function(checkbox) {
         selectedRepos.push(checkbox.value);
     });
     
     if (selectedRepos.length === 0) {
-        alert('Please select at least one repository');
+        alert("Please select at least one repository");
         return;
     }
     
     // Show loading indicator
     const originalBtnText = createBtn.textContent;
     createBtn.disabled = true;
-    createBtn.textContent = 'Creating workspace...';
+    createBtn.textContent = "Creating workspace...";
     
     // Add a loading spinner next to the button
-    const loadingSpinner = document.createElement('div');
-    loadingSpinner.id = 'workspace-loading';
-    loadingSpinner.style.display = 'inline-block';
-    loadingSpinner.style.width = '20px';
-    loadingSpinner.style.height = '20px';
-    loadingSpinner.style.border = '3px solid rgba(0, 0, 0, 0.1)';
-    loadingSpinner.style.borderTop = '3px solid #3498db';
-    loadingSpinner.style.borderRadius = '50%';
-    loadingSpinner.style.animation = 'spin 1s linear infinite';
-    loadingSpinner.style.marginLeft = '10px';
+    const loadingSpinner = document.createElement("div");
+    loadingSpinner.id = "workspace-loading";
+    loadingSpinner.style.display = "inline-block";
+    loadingSpinner.style.width = "20px";
+    loadingSpinner.style.height = "20px";
+    loadingSpinner.style.border = "3px solid rgba(0, 0, 0, 0.1)";
+    loadingSpinner.style.borderTop = "3px solid #3498db";
+    loadingSpinner.style.borderRadius = "50%";
+    loadingSpinner.style.animation = "spin 1s linear infinite";
+    loadingSpinner.style.marginLeft = "10px";
     
     // Add keyframes for spinner animation
-    const style = document.createElement('style');
+    const style = document.createElement("style");
     style.textContent = `
         @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -1264,21 +1264,21 @@ function createVirtualWorkspace() {
     createBtn.parentNode.insertBefore(loadingSpinner, createBtn.nextSibling);
     
     // Get backend URL and token
-    chrome.storage.sync.get(['backendUrl', 'gitlabToken'], function(data) {
+    chrome.storage.sync.get(["backendUrl", "gitlabToken"], function(data) {
         let backendUrl = data.backendUrl;
         const gitlabToken = data.gitlabToken;
         
         if (!backendUrl || !gitlabToken) {
-            alert('Please configure Backend URL and GitLab Token in Settings');
+            alert("Please configure Backend URL and GitLab Token in Settings");
             resetCreateButton();
             return;
         }
         
         // Normalize backend URL - remove any trailing slashes
-        backendUrl = backendUrl.replace(/\/+$/, '');
+        backendUrl = backendUrl.replace(/\/+$/, "");
         
         // Read the commit submodules script content
-        fetch(chrome.runtime.getURL('/backend-scripts/commit-submodules.sh'))
+        fetch(chrome.runtime.getURL("/backend-scripts/commit-submodules.sh"))
             .then(response => response.text())
             .then(scriptContent => {
                 // Prepare comprehensive payload with explicit naming directives
@@ -1297,15 +1297,15 @@ function createVirtualWorkspace() {
                     script_content: scriptContent
                 };
                 
-                console.log('Creating workspace with payload:', payload);
+                console.log("Creating workspace with payload:", payload);
                 
                 // Create workspace request
                 fetch(`${backendUrl}/api/workspace/create`, {
-                    method: 'POST',
+                    method: "POST",
                     headers: {
-                        'Content-Type': 'application/json',
-                        'x-gitlab-token': gitlabToken,
-                        'x-requested-name': workspaceName         // Additional header for name
+                        "Content-Type": "application/json",
+                        "x-gitlab-token": gitlabToken,
+                        "x-requested-name": workspaceName         // Additional header for name
                     },
                     body: JSON.stringify(payload)
                 })
@@ -1313,10 +1313,10 @@ function createVirtualWorkspace() {
                     if (!response.ok) {
                         // Try to get error details from response
                         return response.json().then(errData => {
-                            console.error('Error details from API:', errData);
+                            console.error("Error details from API:", errData);
                             throw new Error(`Failed to create workspace: ${response.status} - ${errData.detail || JSON.stringify(errData)}`);
                         }).catch(err => {
-                            if (err.message.includes('Failed to create workspace')) {
+                            if (err.message.includes("Failed to create workspace")) {
                                 throw err;
                             }
                             throw new Error(`Failed to create workspace: ${response.status}`);
@@ -1325,10 +1325,10 @@ function createVirtualWorkspace() {
                     return response.json();
                 })
                 .then(data => {
-                    console.log('Workspace created, API response:', data);
+                    console.log("Workspace created, API response:", data);
                     
                     // Show result
-                    resultDiv.style.display = 'block';
+                    resultDiv.style.display = "block";
                     
                     // Log all potential URL fields for debugging
                     console.log("URL fields in response:", {
@@ -1345,8 +1345,8 @@ function createVirtualWorkspace() {
                     let cloneUrl;
                     
                     // Check if we have a local file path (Windows or Unix style)
-                    const isWindowsPath = /^[A-Z]:\\/.test(data.clone_url || data.cloneUrl || data.path || data.local_path || '');
-                    const isUnixPath = /^\/(?!http)/.test(data.clone_url || data.cloneUrl || data.path || data.local_path || '');
+                    const isWindowsPath = /^[A-Z]:\\/.test(data.clone_url || data.cloneUrl || data.path || data.local_path || "");
+                    const isUnixPath = /^\/(?!http)/.test(data.clone_url || data.cloneUrl || data.path || data.local_path || "");
                     
                     if (isWindowsPath || isUnixPath) {
                         console.log("Detected local file path");
@@ -1357,7 +1357,7 @@ function createVirtualWorkspace() {
                             data.path,
                             data.clone_url,
                             data.cloneUrl
-                        ].filter(p => p && (p.includes(':\\') || p.startsWith('/'))); // Filter for valid file paths
+                        ].filter(p => p && (p.includes(":\\") || p.startsWith("/"))); // Filter for valid file paths
                         
                         if (localPaths.length > 0) {
                             // Check if the path contains the workspace name
@@ -1376,8 +1376,8 @@ function createVirtualWorkspace() {
                             console.log("No valid local path found, constructing a default");
                             
                             // Guess a reasonable local path
-                            if (navigator.platform.includes('Win')) {
-                                cloneUrl = `C:\\Users\\${navigator.userAgent.split('Windows NT ')[1]?.split(';')[0] || 'username'}\\AppData\\Local\\Temp\\virtual_workspaces\\${workspaceName}`;
+                            if (navigator.platform.includes("Win")) {
+                                cloneUrl = `C:\\Users\\${navigator.userAgent.split("Windows NT ")[1]?.split(";")[0] || "username"}\\AppData\\Local\\Temp\\virtual_workspaces\\${workspaceName}`;
                             } else {
                                 cloneUrl = `/tmp/virtual_workspaces/${workspaceName}`;
                             }
@@ -1416,11 +1416,11 @@ function createVirtualWorkspace() {
                     console.log("Final clone URL:", cloneUrl);
                     
                     // Construct clone command - don't try HEAD request for local paths
-                    const isLocalPath = cloneUrl.includes(':\\') || (cloneUrl.startsWith('/') && !cloneUrl.startsWith('//'));
+                    const isLocalPath = cloneUrl.includes(":\\") || (cloneUrl.startsWith("/") && !cloneUrl.startsWith("//"));
                     
-                    if (!isLocalPath && !cloneUrl.endsWith('.git')) {
+                    if (!isLocalPath && !cloneUrl.endsWith(".git")) {
                         // Check with server if the URL with .git exists - only for HTTP URLs
-                        fetch(`${cloneUrl}.git`, { method: 'HEAD' })
+                        fetch(`${cloneUrl}.git`, { method: "HEAD" })
                             .then(response => {
                                 if (response.ok) {
                                     console.log("URL with .git suffix exists, using it");
@@ -1441,37 +1441,38 @@ function createVirtualWorkspace() {
                         cloneCommandEl.textContent = cloneCommand;
                         
                         // Add note about validation
-                        const noteEl = document.createElement('div');
-                        noteEl.style.backgroundColor = '#e7f3fe';
-                        noteEl.style.borderLeft = '4px solid #2196F3';
-                        noteEl.style.padding = '10px';
-                        noteEl.style.marginTop = '10px';
-                        noteEl.style.borderRadius = '3px';
+                        const noteEl = document.createElement("div");
+                        noteEl.style.backgroundColor = "#e7f3fe";
+                        noteEl.style.borderLeft = "4px solid #2196F3";
+                        noteEl.style.padding = "10px";
+                        noteEl.style.marginTop = "10px";
+                        noteEl.style.borderRadius = "3px";
                         
-                        const codeStyle = 'background-color: #f1f1f1; padding: 2px 5px; border-radius: 3px; font-family: monospace;';
+                        const codeStyle = "background-color: #f1f1f1; padding: 2px 5px; border-radius: 3px; font-family: monospace;";
                         
-                        noteEl.innerHTML = '<strong>Note:</strong> Helper scripts have been added to the workspace:<br><br>' +
-                            '* <span style="' + codeStyle + '">./multi-repo.sh commit "Your message"</span> - Commit changes in all repositories<br>' +
-                            '* <span style="' + codeStyle + '">./multi-repo.sh push</span> - Push all committed changes<br>' +
-                            '* <span style="' + codeStyle + '">./multi-repo.sh pull</span> - Pull changes for all repositories<br>' +
-                            '* <span style="' + codeStyle + '">./multi-repo.sh status</span> - Show status of all repositories<br>' +
-                            '* <span style="' + codeStyle + '">./multi-repo.sh pr "Your PR title"</span> - Commit changes and create PRs<br>' +
-                            '* <span style="' + codeStyle + '">./multi-repo.sh help</span> - See all available commands';
+                        noteEl.innerHTML = "<strong>Note:</strong> Helper scripts have been added to the workspace:<br><br>" +
+                            "* <span style=\"" + codeStyle + "\">./multi-repo.sh init</span> - Initialize all submodules<br>" +
+                            "* <span style=\"" + codeStyle + "\">./multi-repo.sh commit \"Your message\"</span> - Commit changes in all repositories<br>" +
+                            "* <span style=\"" + codeStyle + "\">./multi-repo.sh push</span> - Push all committed changes<br>" +
+                            "* <span style=\"" + codeStyle + "\">./multi-repo.sh pull</span> - Pull changes for all repositories<br>" +
+                            "* <span style=\"" + codeStyle + "\">./multi-repo.sh status</span> - Show status of all repositories<br>" +
+                            "* <span style=\"" + codeStyle + "\">./multi-repo.sh pr \"Your PR title\"</span> - Commit changes and create PRs<br>" +
+                            "* <span style=\"" + codeStyle + "\">./multi-repo.sh help</span> - See all available commands";
                         
                         // Only add if it doesn't exist yet
-                        if (!document.querySelector('.helper-script-note')) {
-                            noteEl.classList.add('helper-script-note');
+                        if (!document.querySelector(".helper-script-note")) {
+                            noteEl.classList.add("helper-script-note");
                             resultDiv.appendChild(noteEl);
                         }
                         
                         // Setup copy button
-                        const copyBtn = document.getElementById('copy-clone-command');
+                        const copyBtn = document.getElementById("copy-clone-command");
                         if (copyBtn) {
-                            copyBtn.addEventListener('click', function() {
+                            copyBtn.addEventListener("click", function() {
                                 navigator.clipboard.writeText(cloneCommand).then(function() {
-                                    copyBtn.textContent = 'Copied!';
+                                    copyBtn.textContent = "Copied!";
                                     setTimeout(function() {
-                                        copyBtn.textContent = 'Copy';
+                                        copyBtn.textContent = "Copy";
                                     }, 2000);
                                 });
                             });
@@ -1493,14 +1494,14 @@ function createVirtualWorkspace() {
                     resetCreateButton();
                 })
                 .catch(error => {
-                    console.error('Failed to create workspace:', error);
+                    console.error("Failed to create workspace:", error);
                     alert(error.message);
                     resetCreateButton();
                 });
             })
             .catch(error => {
-                console.error('Failed to load script content:', error);
-                alert('Failed to load script content: ' + error.message);
+                console.error("Failed to load script content:", error);
+                alert("Failed to load script content: " + error.message);
                 resetCreateButton();
             });
     });
@@ -1509,7 +1510,7 @@ function createVirtualWorkspace() {
     function resetCreateButton() {
         createBtn.disabled = false;
         createBtn.textContent = originalBtnText;
-        const spinner = document.getElementById('workspace-loading');
+        const spinner = document.getElementById("workspace-loading");
         if (spinner) {
             spinner.parentNode.removeChild(spinner);
         }
@@ -1518,73 +1519,73 @@ function createVirtualWorkspace() {
 
 // Load workspace history
 function loadWorkspaceHistory() {
-    const historyContainer = document.getElementById('workspace-history');
+    const historyContainer = document.getElementById("workspace-history");
     if (!historyContainer) {
-        console.error('Workspace history container not found');
+        console.error("Workspace history container not found");
         return;
     }
     
     // Get workspace history from storage
-    chrome.storage.sync.get(['workspaceHistory'], function(data) {
+    chrome.storage.sync.get(["workspaceHistory"], function(data) {
         const workspaces = data.workspaceHistory || [];
         
         // Clear container
-        historyContainer.innerHTML = '';
+        historyContainer.innerHTML = "";
         
         // Add title
-        const title = document.createElement('h3');
-        title.textContent = 'Recent Workspaces';
-        title.style.marginTop = '20px';
-        title.style.borderBottom = '1px solid #ddd';
-        title.style.paddingBottom = '8px';
+        const title = document.createElement("h3");
+        title.textContent = "Recent Workspaces";
+        title.style.marginTop = "20px";
+        title.style.borderBottom = "1px solid #ddd";
+        title.style.paddingBottom = "8px";
         historyContainer.appendChild(title);
         
         // Create workspace list
         if (workspaces.length === 0) {
-            const emptyMsg = document.createElement('p');
-            emptyMsg.textContent = 'No workspaces created yet.';
-            emptyMsg.style.fontStyle = 'italic';
-            emptyMsg.style.color = '#666';
+            const emptyMsg = document.createElement("p");
+            emptyMsg.textContent = "No workspaces created yet.";
+            emptyMsg.style.fontStyle = "italic";
+            emptyMsg.style.color = "#666";
             historyContainer.appendChild(emptyMsg);
         } else {
-            const list = document.createElement('div');
-            list.style.maxHeight = '200px';
-            list.style.overflowY = 'auto';
+            const list = document.createElement("div");
+            list.style.maxHeight = "200px";
+            list.style.overflowY = "auto";
             
             workspaces.forEach(function(workspace) {
-                const item = document.createElement('div');
-                item.style.padding = '8px';
-                item.style.borderBottom = '1px solid #eee';
-                item.style.display = 'flex';
-                item.style.justifyContent = 'space-between';
-                item.style.alignItems = 'center';
+                const item = document.createElement("div");
+                item.style.padding = "8px";
+                item.style.borderBottom = "1px solid #eee";
+                item.style.display = "flex";
+                item.style.justifyContent = "space-between";
+                item.style.alignItems = "center";
                 
-                const nameDiv = document.createElement('div');
+                const nameDiv = document.createElement("div");
                 
-                const nameSpan = document.createElement('span');
-                nameSpan.textContent = workspace.name || 'Unnamed Workspace';
-                nameSpan.style.fontWeight = 'bold';
+                const nameSpan = document.createElement("span");
+                nameSpan.textContent = workspace.name || "Unnamed Workspace";
+                nameSpan.style.fontWeight = "bold";
                 
-                const taskSpan = document.createElement('span');
-                taskSpan.textContent = workspace.task ? ` (${workspace.task})` : '';
-                taskSpan.style.color = '#666';
+                const taskSpan = document.createElement("span");
+                taskSpan.textContent = workspace.task ? ` (${workspace.task})` : "";
+                taskSpan.style.color = "#666";
                 
                 nameDiv.appendChild(nameSpan);
                 nameDiv.appendChild(taskSpan);
                 
-                const cloneBtn = document.createElement('button');
-                cloneBtn.textContent = 'Clone';
-                cloneBtn.style.padding = '4px 8px';
-                cloneBtn.style.backgroundColor = '#27AE60';
-                cloneBtn.style.color = 'white';
-                cloneBtn.style.border = 'none';
-                cloneBtn.style.borderRadius = '3px';
-                cloneBtn.style.cursor = 'pointer';
+                const cloneBtn = document.createElement("button");
+                cloneBtn.textContent = "Clone";
+                cloneBtn.style.padding = "4px 8px";
+                cloneBtn.style.backgroundColor = "#27AE60";
+                cloneBtn.style.color = "white";
+                cloneBtn.style.border = "none";
+                cloneBtn.style.borderRadius = "3px";
+                cloneBtn.style.cursor = "pointer";
                 
-                cloneBtn.addEventListener('click', function() {
+                cloneBtn.addEventListener("click", function() {
                     copyToClipboard(`git clone ${workspace.clone_url}`, function() {
                         const originalText = cloneBtn.textContent;
-                        cloneBtn.textContent = 'Copied!';
+                        cloneBtn.textContent = "Copied!";
                         setTimeout(function() {
                             cloneBtn.textContent = originalText;
                         }, 2000);
@@ -1603,7 +1604,7 @@ function loadWorkspaceHistory() {
 
 // Add a workspace to history
 function addWorkspaceToHistory(workspace) {
-    chrome.storage.sync.get(['workspaceHistory'], function(data) {
+    chrome.storage.sync.get(["workspaceHistory"], function(data) {
         let workspaces = data.workspaceHistory || [];
         
         // Add new workspace at the beginning
@@ -1624,6 +1625,6 @@ function copyToClipboard(text, callback) {
     navigator.clipboard.writeText(text)
         .then(callback)
         .catch(function(err) {
-            console.error('Could not copy text: ', err);
+            console.error("Could not copy text: ", err);
         });
 }

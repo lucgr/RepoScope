@@ -365,28 +365,28 @@ async function checkPRPipelineStatus(prUrl) {
         // Extract project and MR ID from URL
         const match = prUrl.match(/gitlab\.com\/([^/]+(?:\/[^/]+)*?)\/\-\/merge_requests\/(\d+)/);
         if (!match) {
-            console.error('Could not extract project path and MR ID from URL:', prUrl);
+            console.error("Could not extract project path and MR ID from URL:", prUrl);
             return null;
         }
 
         const [_, projectPath, mrId] = match;
         
         // Get GitLab token
-        const { gitlabToken } = await chrome.storage.sync.get(['gitlabToken']);
+        const { gitlabToken } = await chrome.storage.sync.get(["gitlabToken"]);
         if (!gitlabToken) {
-            console.error('Missing GitLab token');
+            console.error("Missing GitLab token");
             return null;
         }
 
         // First, get the project ID
         const projectResponse = await fetch(`https://gitlab.com/api/v4/projects/${encodeURIComponent(projectPath)}`, {
             headers: {
-                'Authorization': `Bearer ${gitlabToken}`
+                "Authorization": `Bearer ${gitlabToken}`
             }
         });
 
         if (!projectResponse.ok) {
-            console.error('Failed to fetch project info:', projectResponse.status);
+            console.error("Failed to fetch project info:", projectResponse.status);
             return null;
         }
 
@@ -396,12 +396,12 @@ async function checkPRPipelineStatus(prUrl) {
         // Now fetch the MR pipelines
         const pipelinesResponse = await fetch(`https://gitlab.com/api/v4/projects/${projectId}/merge_requests/${mrId}/pipelines`, {
             headers: {
-                'Authorization': `Bearer ${gitlabToken}`
+                "Authorization": `Bearer ${gitlabToken}`
             }
         });
 
         if (!pipelinesResponse.ok) {
-            console.error('Failed to fetch pipeline status:', pipelinesResponse.status);
+            console.error("Failed to fetch pipeline status:", pipelinesResponse.status);
             return null;
         }
 
@@ -414,35 +414,35 @@ async function checkPRPipelineStatus(prUrl) {
         
         return null;
     } catch (error) {
-        console.error('Error checking PR pipeline status:', error);
+        console.error("Error checking PR pipeline status:", error);
         return null;
     }
 }
 
 // Function to get pipeline status emoji
 function getPipelineStatusEmoji(status) {
-    if (!status) return '<span class="pipeline-status no-pipeline">No pipelines</span>';
+    if (!status) return "<span class=\"pipeline-status no-pipeline\">No pipelines</span>";
     
     switch (status) {
-        case 'success':
-            return '<span class="pipeline-status success">✅ Pipeline(s) Succeeded</span>';
-        case 'failed':
-            return '<span class="pipeline-status failed">❌ Pipeline(s) Failed</span>';
-        case 'running':
-        case 'pending':
-            return '<span class="pipeline-status running">⌛ Pipeline(s) Running</span>';
+        case "success":
+            return "<span class=\"pipeline-status success\">✅ Pipeline(s) Succeeded</span>";
+        case "failed":
+            return "<span class=\"pipeline-status failed\">❌ Pipeline(s) Failed</span>";
+        case "running":
+        case "pending":
+            return "<span class=\"pipeline-status running\">⌛ Pipeline(s) Running</span>";
         default:
-            return '<span class="pipeline-status unknown">' + status + '</span>';
+            return "<span class=\"pipeline-status unknown\">" + status + "</span>";
     }
 }
 
 function createUnifiedView(taskPRs) {
-    const container = document.createElement('div');
-    container.className = 'unified-pr-view';
+    const container = document.createElement("div");
+    container.className = "unified-pr-view";
     
     // Create header
-    const header = document.createElement('div');
-    header.className = 'unified-pr-header';
+    const header = document.createElement("div");
+    header.className = "unified-pr-header";
     header.innerHTML = `
         <h3>Related Merge Requests</h3>
         <div class="task-name">Task: ${taskPRs.task_name}</div>
@@ -450,23 +450,23 @@ function createUnifiedView(taskPRs) {
     container.appendChild(header);
 
     // Create PR list
-    const prList = document.createElement('div');
-    prList.className = 'unified-pr-list';
+    const prList = document.createElement("div");
+    prList.className = "unified-pr-list";
     
     // Check if all PRs are approved
     const allApproved = taskPRs.prs.every(pr => pr.isApproved);
 
     // Add PR items
     taskPRs.prs.forEach(pr => {
-        const prItem = document.createElement('div');
-        prItem.className = `pr-item ${pr.isApproved ? 'approved' : ''}`;
+        const prItem = document.createElement("div");
+        prItem.className = `pr-item ${pr.isApproved ? "approved" : ""}`;
         prItem.innerHTML = `
             <a href="${pr.web_url}" target="_blank">${pr.repository_name} #${pr.iid}</a>
             <div class="status-badges">
                 ${getPipelineStatusEmoji(pr.pipeline_status)}
                 ${pr.isApproved ? 
-                    '<span class="approval-status"><i class="checkmark">&#10003;</i> Approved</span>' : 
-                    '<span class="approval-status pending">Not approved</span>'
+                    "<span class=\"approval-status\"><i class=\"checkmark\">&#10003;</i> Approved</span>" : 
+                    "<span class=\"approval-status pending\">Not approved</span>"
                 }
             </div>
         `;
@@ -477,15 +477,15 @@ function createUnifiedView(taskPRs) {
 
     // Add approve button or approved status
     if (!allApproved) {
-        const approveButton = document.createElement('button');
-        approveButton.className = 'approve-all-btn';
-        approveButton.textContent = 'Approve All';
+        const approveButton = document.createElement("button");
+        approveButton.className = "approve-all-btn";
+        approveButton.textContent = "Approve All";
         approveButton.onclick = () => approveAllPRs(taskPRs.task_name);
         container.appendChild(approveButton);
     } else {
-        const approvedStatus = document.createElement('div');
-        approvedStatus.className = 'status approved';
-        approvedStatus.textContent = 'All PRs Approved';
+        const approvedStatus = document.createElement("div");
+        approvedStatus.className = "status approved";
+        approvedStatus.textContent = "All PRs Approved";
         container.appendChild(approvedStatus);
     }
 
@@ -495,14 +495,14 @@ function createUnifiedView(taskPRs) {
 async function injectUnifiedView(view) {
     // Try multiple possible injection points
     const injectionPoints = [
-        '.merge-request-description',
-        '.detail-page-description',
-        '[data-testid="merge-request-description"]',
-        '.merge-request-details',
-        '.merge-request-info',
-        '.mr-widget-content',
-        '.mr-widget-section',
-        '.description'
+        ".merge-request-description",
+        ".detail-page-description",
+        "[data-testid=\"merge-request-description\"]",
+        ".merge-request-details",
+        ".merge-request-info",
+        ".mr-widget-content",
+        ".mr-widget-section",
+        ".description"
     ];
     
     let injectionPoint = null;
@@ -515,12 +515,12 @@ async function injectUnifiedView(view) {
     }
     
     if (!injectionPoint) {
-        console.error('Could not find injection point');
+        console.error("Could not find injection point");
         return;
     }
 
     // Remove existing unified view if present
-    const existingView = document.querySelector('.unified-pr-view');
+    const existingView = document.querySelector(".unified-pr-view");
     if (existingView) {
         existingView.remove();
     }

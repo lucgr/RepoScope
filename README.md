@@ -44,6 +44,9 @@ You can see approval status for all related PRs, approve all related PRs with a 
 The virtual workspace feature creates a unified repository with submodules for each selected repository. It includes helper scripts to manage multiple repositories at once:
 
 ```bash
+# Initialize all submodules in the workspace
+./multi-repo init
+
 # Commit changes across all repositories
 ./multi-repo commit "Your commit message"
 
@@ -60,8 +63,15 @@ The virtual workspace feature creates a unified repository with submodules for e
 ./multi-repo branch <branch-name>
 ./multi-repo checkout <branch-name>
 
-# Commit all changes and create pull requests for all repositories
+# Create pull requests for all repositories with changes
 ./multi-repo pr "Your PR title"
+
+# This will:
+# - Ask for a commit message (also used as PR description)
+# - Ask for a target branch (defaults to main)
+# - Ask for a branch name to use for all repositories (defaults to current branch)
+# - Commit and push changes in all submodules
+# - Create pull requests for each repository with changes
 ```
 
 The PR creation command automatically commits all changes in all submodules, pushes them to the remote repositories, and creates pull requests from the current branches to the target branch (default: main). The command will prompt for a commit message (used for both the commit and PR description) and additional information, and supports both GitLab and GitHub repositories.

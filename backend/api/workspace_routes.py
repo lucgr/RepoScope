@@ -1,10 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Body
-from typing import List
-from pydantic import BaseModel
-from ..models.pr import VirtualWorkspaceRequest, VirtualWorkspaceResponse
+from ..models.pr import VirtualWorkspaceResponse
 from ..services.workspace_service import WorkspaceService
 import logging
-import json
 
 # Configure logger
 logger = logging.getLogger(__name__)

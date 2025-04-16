@@ -3,7 +3,7 @@ import subprocess
 import logging
 import tempfile
 import shutil
-from typing import List, Dict, Tuple
+from typing import List, Tuple
 from ..models.pr import VirtualWorkspaceResponse
 
 logger = logging.getLogger(__name__)

@@ -18,6 +18,7 @@ function show_help {
     echo -e "Usage: ${YELLOW}multi-repo <command> [arguments]${NC}"
     echo ""
     echo -e "Available commands:"
+    echo -e "  ${GREEN}init${NC}                    Initialize all submodules in the workspace"
     echo -e "  ${GREEN}commit${NC}    \"message\"      Commit changes across all repositories"
     echo -e "  ${GREEN}push${NC}                    Push all committed changes to remote repositories"
     echo -e "  ${GREEN}pull${NC}                    Pull changes for all repositories"
@@ -48,6 +49,17 @@ shift  # Remove the command from the arguments
 
 # Process commands
 case "$COMMAND" in
+    init)
+        echo -e "${BLUE}=== Initializing all submodules ===${NC}"
+        git submodule update --recursive --init
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}All submodules initialized successfully${NC}"
+        else
+            echo -e "${RED}Failed to initialize submodules${NC}"
+            exit 1
+        fi
+        ;;
+        
     commit)
         # Check if commit message is provided
         if [ -z "$1" ]; then
@@ -301,6 +313,10 @@ case "$COMMAND" in
         read -r TARGET_BRANCH
         TARGET_BRANCH=${TARGET_BRANCH:-main}
         
+        # Ask for branch name to use for all repositories if needed
+        echo -e "${YELLOW}Enter branch name to use for all repositories (leave empty to use current branch for each repo):${NC}"
+        read -r GLOBAL_BRANCH_NAME
+        
         # Flag for GitLab vs GitHub detection
         IS_GITLAB=true
         echo -e "${YELLOW}Are you using GitLab? (y/n, default: y):${NC}"
@@ -344,20 +360,20 @@ case "$COMMAND" in
                     # We're in detached HEAD state
                     echo -e "  ${YELLOW}Detached HEAD state detected${NC}"
                     
-                    # Extract task name from the PR title if possible
-                    TASK_NAME=$(echo "$PR_TITLE" | grep -o '[A-Z]\+-[0-9]\+' | head -1)
-                    if [ -n "$TASK_NAME" ]; then
-                        SUGGESTED_BRANCH="feature/$TASK_NAME"
+                    # Use global branch name if provided, otherwise extract from PR title
+                    if [ -n "$GLOBAL_BRANCH_NAME" ]; then
+                        BRANCH_NAME=$GLOBAL_BRANCH_NAME
                     else
-                        SUGGESTED_BRANCH="feature/$(date +%Y%m%d-%H%M%S)"
-                    fi
-                    
-                    echo -e "  ${YELLOW}Enter branch name to commit changes to (will be created if it doesn't exist) [default: $SUGGESTED_BRANCH]:${NC}"
-                    read -r BRANCH_NAME
-                    
-                    if [ -z "$BRANCH_NAME" ]; then
+                        # Extract task name from the PR title if possible
+                        TASK_NAME=$(echo "$PR_TITLE" | grep -o '[A-Z]\+-[0-9]\+' | head -1)
+                        if [ -n "$TASK_NAME" ]; then
+                            SUGGESTED_BRANCH="feature/$TASK_NAME"
+                        else
+                            SUGGESTED_BRANCH="feature/$(date +%Y%m%d-%H%M%S)"
+                        fi
+                        
+                        echo -e "  ${YELLOW}No branch name provided. Using branch: $SUGGESTED_BRANCH${NC}"
                         BRANCH_NAME=$SUGGESTED_BRANCH
-                        echo -e "  ${YELLOW}Using suggested branch name: $BRANCH_NAME${NC}"
                     fi
                     
                     # Check if branch already exists
@@ -372,6 +388,21 @@ case "$COMMAND" in
                     fi
                     
                     CURRENT_BRANCH=$BRANCH_NAME
+                fi
+                
+                # If global branch name is provided and different from current branch, switch to it
+                if [ -n "$GLOBAL_BRANCH_NAME" ] && [ "$CURRENT_BRANCH" != "$GLOBAL_BRANCH_NAME" ]; then
+                    # Check if branch exists
+                    if git show-ref --verify --quiet refs/heads/$GLOBAL_BRANCH_NAME; then
+                        # Branch exists, check it out
+                        git checkout $GLOBAL_BRANCH_NAME
+                        echo -e "  ${GREEN}Switched to existing branch: $GLOBAL_BRANCH_NAME${NC}"
+                    else
+                        # Create branch
+                        git checkout -b $GLOBAL_BRANCH_NAME
+                        echo -e "  ${GREEN}Created and checked out new branch: $GLOBAL_BRANCH_NAME${NC}"
+                    fi
+                    CURRENT_BRANCH=$GLOBAL_BRANCH_NAME
                 fi
                 
                 # Add all changes
@@ -402,7 +433,36 @@ case "$COMMAND" in
                 # Get current branch
                 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
                 
-                # Check for unpushed commits
+                # If global branch name is provided and different from current branch, switch to it
+                if [ -n "$GLOBAL_BRANCH_NAME" ] && [ "$CURRENT_BRANCH" != "$GLOBAL_BRANCH_NAME" ]; then
+                    # Check if branch exists
+                    if git show-ref --verify --quiet refs/heads/$GLOBAL_BRANCH_NAME; then
+                        # Branch exists, check it out
+                        git checkout $GLOBAL_BRANCH_NAME
+                        echo -e "  ${GREEN}Switched to existing branch: $GLOBAL_BRANCH_NAME${NC}"
+                    else
+                        # Create branch
+                        git checkout -b $GLOBAL_BRANCH_NAME
+                        echo -e "  ${GREEN}Created and checked out new branch: $GLOBAL_BRANCH_NAME${NC}"
+                    fi
+                    CURRENT_BRANCH=$GLOBAL_BRANCH_NAME
+                    
+                    # After switching branch, check again for uncommitted changes
+                    if git status --porcelain | grep -q .; then
+                        echo -e "  ${GREEN}Changes detected after switching branch${NC}"
+                        
+                        # Add all changes
+                        git add .
+                        
+                        # Commit changes
+                        git commit -m "$COMMIT_MESSAGE"
+                        echo -e "  ${GREEN}Changes committed in $SUBMODULE${NC}"
+                        
+                        CHANGES_MADE=true
+                    fi
+                fi
+                
+                # Check for unpushed commits in current branch
                 if git log origin/${CURRENT_BRANCH}..${CURRENT_BRANCH} 2>/dev/null | grep -q .; then
                     echo -e "  ${YELLOW}Found unpushed commits in ${SUBMODULE}. Pushing now...${NC}"
                     git push origin "$CURRENT_BRANCH"
@@ -425,18 +485,9 @@ case "$COMMAND" in
             cd "$CURRENT_DIR" || exit
         done
         
+        # We're skipping updates to the virtual monorepo as requested
         if $CHANGES_MADE; then
-            echo -e "${BLUE}=== Updating main repository ===${NC}"
-            
-            # Add all changes in submodules to the main repository
-            git add .
-            
-            # Commit the submodule updates
-            git commit -m "Updated submodules: $COMMIT_MESSAGE"
-            
-            # Push changes
-            git push origin "$(git rev-parse --abbrev-ref HEAD)"
-            echo -e "${GREEN}Changes pushed to remote for the main repository${NC}"
+            echo -e "${BLUE}=== Changes made in submodules ===${NC}"
         else
             echo -e "${YELLOW}No changes detected in any submodules${NC}"
         fi
@@ -449,8 +500,25 @@ case "$COMMAND" in
             if [ -d "$SUBMODULE" ]; then
                 cd "$SUBMODULE" || continue
                 
-                # Get current branch
-                CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+                # Get current branch or use global branch name if specified
+                if [ -n "$GLOBAL_BRANCH_NAME" ]; then
+                    CURRENT_BRANCH=$GLOBAL_BRANCH_NAME
+                    
+                    # Make sure we're on the correct branch
+                    if [ "$(git rev-parse --abbrev-ref HEAD)" != "$GLOBAL_BRANCH_NAME" ]; then
+                        echo -e "  ${YELLOW}Switching to branch $GLOBAL_BRANCH_NAME for PR creation${NC}"
+                        if git show-ref --verify --quiet refs/heads/$GLOBAL_BRANCH_NAME; then
+                            git checkout $GLOBAL_BRANCH_NAME
+                        else
+                            echo -e "  ${RED}Branch $GLOBAL_BRANCH_NAME does not exist, skipping PR creation for $SUBMODULE${NC}"
+                            cd "$CURRENT_DIR" || exit
+                            continue
+                        fi
+                    fi
+                else
+                    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+                fi
+                
                 echo -e "${BLUE}Creating PR for ${YELLOW}$SUBMODULE${NC} (branch: $CURRENT_BRANCH)"
                 
                 # Get remote URL (to determine if it's GitHub or GitLab)
