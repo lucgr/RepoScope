@@ -170,16 +170,21 @@ function updatePrApprovalStatus(pr) {
         approvalStatus.innerHTML = "Approved";
         approvalStatus.title = "Approved";
         
-        // Disable the approve button
+        // Remove the approve button for approved PRs
         const approveBtn = prItem.querySelector(".approve-btn");
         if (approveBtn) {
-            approveBtn.disabled = true;
-            approveBtn.textContent = "Approved";
+            approveBtn.remove();
         }
+        
+        // Add the approved class to the PR item
+        prItem.classList.add("approved");
     } else {
         approvalStatus.className = "approval-status not-approved";
         approvalStatus.innerHTML = "Not approved";
         approvalStatus.title = "Not approved";
+        
+        // Remove the approved class if present
+        prItem.classList.remove("approved");
     }
 }
 
@@ -433,6 +438,10 @@ function approvePR(repoUrl, prId, button) {
             // Update UI to reflect approval
             const prItem = button.closest(".pr-item");
             if (prItem) {
+                // Add the approved class
+                prItem.classList.add("approved");
+                
+                // Update approval status
                 const approvalStatus = prItem.querySelector(".approval-status");
                 if (approvalStatus) {
                     approvalStatus.className = "approval-status approved";
@@ -565,6 +574,10 @@ function approveAllPRs(taskId) {
             approveBtns.forEach(btn => {
                 const prItem = btn.closest(".pr-item");
                 if (prItem) {
+                    // Add approved class to PR item
+                    prItem.classList.add("approved");
+                    
+                    // Update approval status
                     const approvalStatus = prItem.querySelector(".approval-status");
                     if (approvalStatus) {
                         approvalStatus.className = "approval-status approved";

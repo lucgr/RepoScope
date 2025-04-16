@@ -196,7 +196,7 @@ button:hover {
 
 .pr-item.approved {
     background: #f3f9f4;
-    border-color: #97d3a0;
+    border-color: #c3e6cd;
 }
 
 .pr-item a {
@@ -228,9 +228,10 @@ button:hover {
 }
 
 .approval-status.approved {
-    background-color: #f3f9f4;
+    background-color: #e7f5ed;
     color: #1aaa55;
     border: 1px solid #97d3a0;
+    font-weight: 500;
 }
 
 .approval-status.not-approved {
@@ -252,6 +253,17 @@ button:hover {
 
 .approve-btn:hover {
     background: #168f48;
+}
+
+.approve-btn.approved {
+    background: #f3f9f4;
+    color: #1aaa55;
+    border: 1px solid #97d3a0;
+    cursor: default;
+}
+
+.approve-btn.approved:hover {
+    background: #f3f9f4;
 }
 
 .approve-all-btn {
