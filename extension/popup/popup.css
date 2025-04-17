@@ -639,4 +639,32 @@ textarea {
 @keyframes fadeOut {
     from { opacity: 1; transform: translate(-50%, 0); }
     to { opacity: 0; transform: translate(-50%, 10px); }
+}
+
+.history-table td {
+    padding: 8px;
+    vertical-align: middle;
+}
+
+.clone-history-btn {
+    margin-right: 5px;
+}
+
+.delete-history-btn {
+    background-color: transparent;
+    color: #888;
+    border: none;
+    padding: 0 5px;
+    font-size: 14px;
+    line-height: 1;
+    font-weight: normal;
+    border-radius: 0;
+    cursor: pointer;
+    transition: color 0.2s;
+    display: inline-block;
+}
+
+.delete-history-btn:hover {
+    background-color: transparent;
+    color: #e74c3c;
 } 

@@ -460,6 +460,8 @@ function loadWorkspaceHistory() {
             
             // Actions cell
             const actionsCell = document.createElement("td");
+            actionsCell.style.display = "flex";
+            actionsCell.style.alignItems = "center";
             
             // Clone button
             const cloneBtn = document.createElement("button");
@@ -605,6 +607,21 @@ function loadWorkspaceHistory() {
             });
             
             actionsCell.appendChild(cloneBtn);
+            
+            // Delete button
+            const deleteBtn = document.createElement("button");
+            deleteBtn.className = "delete-history-btn";
+            deleteBtn.textContent = "x"; // Using a simple lowercase 'x' instead
+            deleteBtn.title = "Remove this workspace from history";
+            
+            deleteBtn.addEventListener("click", function() {
+                // Confirm before deleting
+                if (confirm(`Are you sure you want to remove '${workspace.name}' from your workspace history?`)) {
+                    removeWorkspaceFromHistory(workspace.name);
+                }
+            });
+            
+            actionsCell.appendChild(deleteBtn);
             row.appendChild(actionsCell);
             
             tbody.appendChild(row);
@@ -802,6 +819,24 @@ function setupCopyCloneButton() {
     });
 }
 
+// Function to remove workspace from history
+function removeWorkspaceFromHistory(workspaceName) {
+    if (!workspaceName) return;
+    
+    chrome.storage.sync.get(["workspaceHistory"], function(data) {
+        const history = data.workspaceHistory || [];
+        
+        // Find and remove the workspace with the matching name
+        const updatedHistory = history.filter(workspace => workspace.name !== workspaceName);
+        
+        // Save updated history
+        chrome.storage.sync.set({ workspaceHistory: updatedHistory }, function() {
+            // Reload history to update UI
+            loadWorkspaceHistory();
+        });
+    });
+}
+
 // Export functions for use in other modules
 window.extractTaskFromBranch = extractTaskFromBranch;
 window.ensureWorkspaceNameInUrl = ensureWorkspaceNameInUrl;
@@ -811,4 +846,5 @@ window.createVirtualWorkspace = createVirtualWorkspace;
 window.loadWorkspaceHistory = loadWorkspaceHistory;
 window.addWorkspaceToHistory = addWorkspaceToHistory;
 window.updateCloneCommand = updateCloneCommand;
-window.setupCopyCloneButton = setupCopyCloneButton; 
+window.setupCopyCloneButton = setupCopyCloneButton;
+window.removeWorkspaceFromHistory = removeWorkspaceFromHistory; 
