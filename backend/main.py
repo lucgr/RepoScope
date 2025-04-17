@@ -10,7 +10,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-app = FastAPI(title="Unified PR Viewer API")
+app = FastAPI(title="MultiRepoHub API")
 
 # Configure CORS
 app.add_middleware(
@@ -27,7 +27,7 @@ app.include_router(workspace_router)
 
 @app.get("/")
 async def root():
-    return {"message": "Unified PR Viewer API"}
+    return {"message": "MultiRepoHub API"}
 
 @app.get("/health")
 async def health_check():

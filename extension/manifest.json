@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Unified PR Viewer",
+  "name": "MultiRepoHub",
   "version": "1.0",
   "description": "View and manage related PRs across multiple repositories",
   "permissions": [

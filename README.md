@@ -1,10 +1,10 @@
-# RepoScope: Unified PR Viewer Extension
+# MultiRepoHub: Unified PR Viewer Extension
 
 A Chrome extension for viewing and managing related Pull Requests across multiple GitLab repositories, streamlining development workflows for multi-repository architecture systems.
 
 ## Overview
 
-RepoScope solves the challenge of managing code changes across multiple repositories by providing a unified interface for tracking, approving, and monitoring related Pull Requests. It integrates directly into GitLab's UI and provides powerful virtual workspace capabilities for multi-repository development.
+MultiRepoHub solves the challenge of managing code changes across multiple repositories by providing a unified interface for tracking, approving, and monitoring related Pull Requests. It integrates directly into GitLab's UI and provides powerful virtual workspace capabilities for multi-repository development.
 
 ## Key Features
 
@@ -18,7 +18,7 @@ RepoScope solves the challenge of managing code changes across multiple reposito
 
 ## Problem Solving
 
-RepoScope addresses several key challenges in modern software development:
+MultiRepoHub addresses several key challenges in modern software development:
 
 1. **Microservices Complexity**: Simplifies the management of changes across microservice architectures
 2. **Fragmented Reviews**: Consolidates the review process for related changes across repositories

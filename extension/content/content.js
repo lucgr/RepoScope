@@ -1,4 +1,4 @@
-console.log("%c Unified PR Viewer Extension Loaded ", "background: #222; color:rgb(82, 218, 172); font-size: 16px;");
+console.log("%c MultiRepoHub Extension Loaded ", "background: #222; color:rgb(82, 218, 172); font-size: 16px;");
 
 // Immediately check storage to verify settings
 chrome.storage.sync.get(["backendUrl", "repoUrls"], (result) => {
