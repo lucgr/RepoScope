@@ -28,23 +28,26 @@
             </div>
             <div class="form-group">
                 <label>Repositories:</label>
-                <div class="repo-list-container">
-                    <table id="repo-list" class="repo-table">
-                        <thead>
-                            <tr>
-                                <th>Repository URL</th>
-                                <th width="40px">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Repository list will be populated here -->
-                        </tbody>
-                    </table>
-                    <div class="empty-state" id="empty-repos">
-                        No repositories added yet
+                <div id="repo-list-section">
+                    <div class="repo-list-container">
+                        <div id="repo-add-help" class="help-text" style="display:none;">Save your GitLab token before adding repositories.</div>
+                        <table id="repo-list" class="repo-table">
+                            <thead>
+                                <tr>
+                                    <th>Repository URL</th>
+                                    <th width="40px">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Repository list will be populated here -->
+                            </tbody>
+                        </table>
+                        <div class="empty-state" id="empty-repos">
+                            No repositories added yet
+                        </div>
                     </div>
                 </div>
-                <div class="repo-form">
+                <div class="repo-form" id="repo-form" style="display:none;">
                     <input type="text" id="new-repo-url" placeholder="https://gitlab.com/username/repo">
                     <button id="add-repo-btn">Add Repository</button>
                 </div>

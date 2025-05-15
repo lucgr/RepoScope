@@ -1,48 +1,52 @@
 // Repository management functions
 console.log("Repository module loaded and ready");
 
+// In-memory storage for all repos
+let allRepos = [];
+let filteredRepos = [];
+
+// Function to filter repos by search term
+function filterRepos(searchTerm) {
+    if (!searchTerm) return allRepos;
+    const lower = searchTerm.toLowerCase();
+    return allRepos.filter(repo => repo.toLowerCase().includes(lower));
+}
+
 // Function to add a repository
 function addRepository() {
     const urlInput = document.getElementById("new-repo-url");
     if (!urlInput) return;
-    
     const url = urlInput.value.trim();
     if (!url) {
         alert("Please enter a repository URL");
         return;
     }
-    
     if (!url.startsWith("https://gitlab.com/")) {
         alert("Please enter a valid GitLab repository URL (https://gitlab.com/...)");
         return;
     }
-    
     chrome.storage.sync.get(["repoUrls"], function(data) {
-        // Parse existing repos
-        const existingRepos = data.repoUrls ? 
-            data.repoUrls.split("\n").filter(u => u.trim()).map(u => u.trim()) : 
-            [];
-        
-        // Check if repo already exists
-        if (existingRepos.includes(url)) {
-            alert("This repository is already in the list");
+        const newRepoKey = extractRepoOwnerAndName(url);
+        if (!newRepoKey) {
+            alert("Could not parse repository owner and name from URL");
             return;
         }
-        
+        const existingRepos = data.repoUrls
+            ? data.repoUrls.split("\n").filter(u => u.trim())
+            : [];
+        const existingKeys = existingRepos.map(extractRepoOwnerAndName).filter(Boolean);
+        if (existingKeys.includes(newRepoKey)) {
+            alert("A repository with this owner and name is already in the list");
+            return;
+        }
         // Add new repo
         existingRepos.push(url);
         const updatedRepoUrls = existingRepos.join("\n");
-        
-        // Save to storage
         chrome.storage.sync.set({ repoUrls: updatedRepoUrls }, function() {
-            // Update UI
-            loadRepositoryList(updatedRepoUrls);
-            updateWorkspaceRepoSelection(updatedRepoUrls);
-            
-            // Clear input
+            allRepos = updatedRepoUrls.split("\n").filter(u => u.trim());
+            loadRepositoryList(updatedRepoUrls, "", true);
+            updateWorkspaceRepoSelection(updatedRepoUrls, "", true);
             urlInput.value = "";
-            
-            // Show success message
             showMessage("Repository added successfully");
         });
     });
@@ -51,62 +55,49 @@ function addRepository() {
 // Function to remove a repository
 function removeRepository(url) {
     if (!url) return;
-    
     chrome.storage.sync.get(["repoUrls"], function(data) {
-        // Parse existing repos
-        const existingRepos = data.repoUrls ? 
-            data.repoUrls.split("\n").filter(u => u.trim()).map(u => u.trim()) : 
-            [];
-        
-        // Remove repo
-        const updatedRepos = existingRepos.filter(r => r !== url);
+        const updatedRepos = data.repoUrls
+            ? data.repoUrls.split("\n").filter(u => u.trim() && u.trim() !== url)
+            : [];
         const updatedRepoUrls = updatedRepos.join("\n");
-        
-        // Save to storage
         chrome.storage.sync.set({ repoUrls: updatedRepoUrls }, function() {
-            // Update UI
-            loadRepositoryList(updatedRepoUrls);
-            updateWorkspaceRepoSelection(updatedRepoUrls);
-            
-            // Show success message
+            // Update allRepos after remove
+            allRepos = updatedRepoUrls.split("\n").filter(u => u.trim());
+            const searchInput = document.getElementById("repo-search");
+            const searchValue = searchInput ? searchInput.value : "";
+            loadRepositoryList(updatedRepoUrls, searchValue, true);
+            updateWorkspaceRepoSelection(updatedRepoUrls, searchValue, true);
             showMessage("Repository removed");
         });
     });
 }
 
-// Function to load repository list
-function loadRepositoryList(repoUrlsString) {
+// Function to load repository list (filtered)
+function loadRepositoryList(repoUrlsString, searchTerm = "", updateAllRepos = false) {
     const repoList = document.getElementById("repo-list");
     if (!repoList) return;
-    
     const tbody = repoList.querySelector("tbody");
     if (!tbody) return;
-    
     const emptyState = document.getElementById("empty-repos");
-    
-    // Parse repos
-    const repos = repoUrlsString ? 
-        repoUrlsString.split("\n").filter(u => u.trim()).map(u => u.trim()) : 
-        [];
-    
+    // Only update allRepos if explicitly told to (on initial load or after add/remove)
+    if (updateAllRepos) {
+        allRepos = repoUrlsString ? repoUrlsString.split("\n").filter(u => u.trim()).map(u => u.trim()) : [];
+    }
+    filteredRepos = filterRepos(searchTerm);
     // Clear existing items
     tbody.innerHTML = "";
-    
     // Show/hide empty state
     if (emptyState) {
-        emptyState.style.display = repos.length > 0 ? "none" : "block";
+        emptyState.style.display = filteredRepos.length > 0 ? "none" : "block";
     }
-    
     // Add repos to list
-    if (repos.length > 0) {
-        repos.forEach(function(repo) {
+    if (filteredRepos.length > 0) {
+        filteredRepos.forEach(function(repo) {
             const row = document.createElement("tr");
-            
             // URL cell
             const urlCell = document.createElement("td");
             urlCell.textContent = repo;
             row.appendChild(urlCell);
-            
             // Action cell
             const actionCell = document.createElement("td");
             const deleteBtn = document.createElement("button");
@@ -118,32 +109,26 @@ function loadRepositoryList(repoUrlsString) {
             };
             actionCell.appendChild(deleteBtn);
             row.appendChild(actionCell);
-            
             tbody.appendChild(row);
         });
     }
 }
 
-// Update workspace repo selection
-function updateWorkspaceRepoSelection(repoUrlsString) {
+// Update workspace repo selection (filtered)
+function updateWorkspaceRepoSelection(repoUrlsString, searchTerm = "", updateAllRepos = false) {
     const container = document.getElementById("workspace-repo-selection");
     if (!container) return;
-    
     const emptyState = document.getElementById("empty-workspace-repos");
-    
-    // Parse repos
-    const repos = repoUrlsString ? 
-        repoUrlsString.split("\n").filter(u => u.trim()).map(u => u.trim()) : 
-        [];
-    
+    if (updateAllRepos) {
+        allRepos = repoUrlsString ? repoUrlsString.split("\n").filter(u => u.trim()).map(u => u.trim()) : [];
+    }
+    filteredRepos = filterRepos(searchTerm);
     // Clear existing items
     container.innerHTML = "";
-    
     // Show/hide empty state
     if (emptyState) {
-        emptyState.style.display = repos.length > 0 ? "none" : "block";
+        emptyState.style.display = filteredRepos.length > 0 ? "none" : "block";
     }
-    
     // Apply container styles
     container.style.maxHeight = "220px";
     container.style.overflowY = "auto";
@@ -152,35 +137,27 @@ function updateWorkspaceRepoSelection(repoUrlsString) {
     container.style.padding = "10px";
     container.style.marginBottom = "15px";
     container.style.backgroundColor = "#f9f9f9";
-    
     // Table-based layout for better visibility
-    if (repos.length > 0) {
+    if (filteredRepos.length > 0) {
         const table = document.createElement("table");
         table.style.width = "100%";
-        
-        repos.forEach(function(repo) {
+        filteredRepos.forEach(function(repo) {
             const row = document.createElement("tr");
-            
             // Checkbox cell
             const checkboxCell = document.createElement("td");
             checkboxCell.style.width = "30px";
-            
             const checkboxWrapper = document.createElement("div");
             checkboxWrapper.className = "checkbox-wrapper";
-            
             const checkbox = document.createElement("input");
             checkbox.type = "checkbox";
             checkbox.value = repo;
             checkbox.id = `repo-${repo.replace(/[^a-zA-Z0-9]/g, "-")}`;
             checkbox.checked = true; // Default to checked
-            
             checkboxWrapper.appendChild(checkbox);
             checkboxCell.appendChild(checkboxWrapper);
             row.appendChild(checkboxCell);
-            
             // Label cell
             const labelCell = document.createElement("td");
-            
             const label = document.createElement("label");
             label.htmlFor = checkbox.id;
             label.textContent = repo;
@@ -188,13 +165,10 @@ function updateWorkspaceRepoSelection(repoUrlsString) {
             label.style.overflow = "hidden";
             label.style.textOverflow = "ellipsis";
             label.style.whiteSpace = "nowrap";
-            
             labelCell.appendChild(label);
             row.appendChild(labelCell);
-            
             table.appendChild(row);
         });
-        
         container.appendChild(table);
     }
 }
@@ -219,9 +193,33 @@ function getRepositoryUrls() {
     });
 }
 
+// On DOMContentLoaded, always set allRepos from storage
+window.addEventListener("DOMContentLoaded", function() {
+    chrome.storage.sync.get(["repoUrls"], function(data) {
+        allRepos = data.repoUrls ? data.repoUrls.split("\n").filter(u => u.trim()) : [];
+    });
+    const searchInput = document.getElementById("repo-search");
+    if (searchInput) {
+        searchInput.addEventListener("input", function() {
+            loadRepositoryList(allRepos.join("\n"), searchInput.value, false);
+            updateWorkspaceRepoSelection(allRepos.join("\n"), searchInput.value, false);
+        });
+    }
+});
+
 // Export functions for use in other modules
 window.addRepository = addRepository;
 window.removeRepository = removeRepository;
 window.loadRepositoryList = loadRepositoryList;
 window.updateWorkspaceRepoSelection = updateWorkspaceRepoSelection;
-window.getRepositoryUrls = getRepositoryUrls; 
+window.getRepositoryUrls = getRepositoryUrls;
+
+function extractRepoOwnerAndName(url) {
+    // Remove protocol, trailing slash, .git, and extract owner and repo name
+    let clean = url.trim().replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/\.git$/, '');
+    const parts = clean.split('/');
+    if (parts.length < 3) return null; // e.g. gitlab.com/owner/repo
+    const owner = parts[1].toLowerCase();
+    const repo = parts[2].toLowerCase();
+    return owner + '/' + repo;
+} 

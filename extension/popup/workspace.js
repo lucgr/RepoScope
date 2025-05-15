@@ -488,6 +488,7 @@ function loadWorkspaceHistory() {
                     commandEl.style.backgroundColor = "#272822";
                     commandEl.style.color = "#f8f8f2";
                     commandEl.style.padding = "10px";
+                    commandEl.style.paddingLeft = "15px"; // Add more left padding for better visibility
                     commandEl.style.borderRadius = "4px";
                     commandEl.style.border = "1px solid #1e1f1c";
                     commandEl.style.fontFamily = "monospace";
@@ -496,7 +497,10 @@ function loadWorkspaceHistory() {
                     commandEl.style.boxSizing = "border-box";
                     commandEl.style.display = "block";
                     commandEl.style.overflow = "auto";
-                    commandEl.style.whiteSpace = "pre";
+                    commandEl.style.whiteSpace = "pre-wrap"; // Change to pre-wrap for better text wrapping
+                    commandEl.style.minHeight = "40px"; // Ensure minimum height
+                    commandEl.style.position = "relative"; // Set position to relative
+                    commandEl.style.zIndex = "2"; // Ensure command is on top
                     
                     resultDiv.appendChild(commandEl);
                 }
@@ -548,9 +552,7 @@ function loadWorkspaceHistory() {
                 noteEl.innerHTML = `
                     <p style="margin-top: 0; font-weight: 600;">After cloning:</p>
                     <ol style="padding-left: 20px; margin-bottom: 0;">
-                        <li>Change to the directory: <code style="background: #eee; padding: 2px 4px; border-radius: 3px;">cd ${workspace.name}</code></li>
-                        <li>Initialize submodules: <code style="background: #eee; padding: 2px 4px; border-radius: 3px;">./multi-repo init</code></li>
-                        <li>Create branches: <code style="background: #eee; padding: 2px 4px; border-radius: 3px;">./multi-repo branch ${workspace.branch || "feature/your-branch"}</code></li>
+                        <li>Initialize workspace: <code style="background: #eee; padding: 2px 4px; border-radius: 3px;">bash multi-repo.sh init</code></li>
                     </ol>
                 `;
                 
@@ -725,6 +727,10 @@ function updateCloneCommand(url) {
     cloneCommandEl.style.overflow = "auto";
     cloneCommandEl.style.whiteSpace = "pre";
     
+    // Remove any existing git icon that might be overlapping
+    const existingIcons = cloneCommandEl.parentNode.querySelectorAll(".git-icon, .command-icon");
+    existingIcons.forEach(icon => icon.remove());
+    
     // Ensure the result div is visible
     document.getElementById("workspace-result").style.display = "block";
     
@@ -746,9 +752,7 @@ function updateCloneCommand(url) {
     noteEl.innerHTML = `
         <p style="margin-top: 0; font-weight: 600;">After cloning:</p>
         <ol style="padding-left: 20px; margin-bottom: 0;">
-            <li>Change to the directory: <code style="background: #eee; padding: 2px 4px; border-radius: 3px;">cd ${workspaceName}</code></li>
-            <li>Initialize submodules: <code style="background: #eee; padding: 2px 4px; border-radius: 3px;">./multi-repo init</code></li>
-            <li>Create branches: <code style="background: #eee; padding: 2px 4px; border-radius: 3px;">./multi-repo branch ${branchName}</code></li>
+            <li>Initialize workspace: <code style="background: #eee; padding: 2px 4px; border-radius: 3px;">bash multi-repo init</code></li>
         </ol>
     `;
     

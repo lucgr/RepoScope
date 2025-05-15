@@ -608,10 +608,6 @@ textarea {
     margin-left: 10px;
 }
 
-.copy-btn:hover {
-    background: #219653;
-}
-
 /* Status Message */
 .status-message {
     position: fixed;

@@ -54,6 +54,45 @@ case "$COMMAND" in
         git submodule update --recursive --init
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}All submodules initialized successfully${NC}"
+            
+            # Get current branch of the main repository
+            MAIN_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+            echo -e "${BLUE}Setting all submodules to branch: ${GREEN}$MAIN_BRANCH${NC}"
+            
+            # Get current directory
+            CURRENT_DIR=$(pwd)
+            
+            # Get list of submodules
+            SUBMODULES=$(git config --file .gitmodules --get-regexp path | awk '{ print $2 }')
+            
+            # Set branch in each submodule
+            for SUBMODULE in $SUBMODULES; do
+                if [ -d "$SUBMODULE" ]; then
+                    echo -e "${BLUE}Checking out branch in ${YELLOW}$SUBMODULE${NC}"
+                    cd "$SUBMODULE" || continue
+                    
+                    # Check if branch exists
+                    if git show-ref --verify --quiet refs/heads/$MAIN_BRANCH; then
+                        # Branch exists, check it out
+                        git checkout $MAIN_BRANCH
+                        echo -e "  ${GREEN}Checked out existing branch: $MAIN_BRANCH${NC}"
+                    else
+                        # Check if remote branch exists
+                        if git ls-remote --heads origin $MAIN_BRANCH | grep -q $MAIN_BRANCH; then
+                            # Remote branch exists, create tracking branch
+                            git checkout -b $MAIN_BRANCH --track origin/$MAIN_BRANCH
+                            echo -e "  ${GREEN}Created and checked out tracking branch: $MAIN_BRANCH${NC}"
+                        else
+                            # Create new branch
+                            git checkout -b $MAIN_BRANCH
+                            echo -e "  ${GREEN}Created and checked out new branch: $MAIN_BRANCH${NC}"
+                        fi
+                    fi
+                    
+                    # Return to main directory
+                    cd "$CURRENT_DIR" || exit
+                fi
+            done
         else
             echo -e "${RED}Failed to initialize submodules${NC}"
             exit 1
@@ -68,8 +107,46 @@ case "$COMMAND" in
             exit 1
         fi
         
-        # Call the commit-submodules script
-        ./commit-submodules.sh "$1"
+        # Call the commit-submodules script and capture output
+        COMMIT_OUTPUT=$(./commit-submodules.sh "$1")
+        echo "$COMMIT_OUTPUT"
+
+        # Collect submodules where a commit was made
+        COMMITTED_SUBMODULES=()
+        while read -r line; do
+            if [[ "$line" =~ "Changes committed in" ]]; then
+                SUBMODULE=$(echo "$line" | awk '{print $5}')
+                COMMITTED_SUBMODULES+=("$SUBMODULE")
+            fi
+        done <<< "$COMMIT_OUTPUT"
+
+        # If any submodules were committed, create a cross-repo tag
+        if [ ${#COMMITTED_SUBMODULES[@]} -gt 0 ]; then
+            TAG_NAME="multi-commit-$(date +%Y%m%d-%H%M%S)"
+            AUTHOR=$(git config user.name)
+            TIMESTAMP=$(date -u)
+            METADATA="Multi-repo commit by $AUTHOR on $TIMESTAMP\nCommit message: $1\n\nAffected repositories:"
+            for SUBMODULE in "${COMMITTED_SUBMODULES[@]}"; do
+                if [ -d "$SUBMODULE" ]; then
+                    cd "$SUBMODULE" || continue
+                    REPO_URL=$(git config --get remote.origin.url)
+                    BRANCH=$(git rev-parse --abbrev-ref HEAD)
+                    LAST_COMMIT=$(git rev-parse HEAD)
+                    METADATA+="\n- $SUBMODULE ($REPO_URL) branch: $BRANCH commit: $LAST_COMMIT"
+                    cd - >/dev/null || exit
+                fi
+            done
+            # Tag and push in each committed submodule
+            for SUBMODULE in "${COMMITTED_SUBMODULES[@]}"; do
+                if [ -d "$SUBMODULE" ]; then
+                    cd "$SUBMODULE" || continue
+                    git tag -a "$TAG_NAME" -m "$METADATA"
+                    git push origin "$TAG_NAME"
+                    echo -e "${GREEN}Created and pushed tag $TAG_NAME in $SUBMODULE${NC}"
+                    cd - >/dev/null || exit
+                fi
+            done
+        fi
         ;;
         
     push)
@@ -149,9 +226,100 @@ case "$COMMAND" in
         # Get current directory
         CURRENT_DIR=$(pwd)
         
+        # Print header
+        printf "${BLUE}%-25s %-15s %-20s %-30s${NC}\n" "Repository" "Branch" "Upstream Status" "Local Status"
+        printf "%s\n" "$(printf '=%.0s' {1..90})"
+
         # First check status of main repository
-        echo -e "${BLUE}Main repository status:${NC}"
-        git status -s
+        echo -e "${YELLOW}Main repository:${NC}"
+        
+        # Get branch info for main repo
+        CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+        
+        # Get ahead/behind counts
+        UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null)
+        
+        if [ -n "$UPSTREAM" ]; then
+            AHEAD_BEHIND=$(git rev-list --left-right --count "$UPSTREAM"..."$CURRENT_BRANCH" 2>/dev/null)
+            if [ $? -eq 0 ]; then
+                BEHIND=$(echo "$AHEAD_BEHIND" | awk '{print $1}')
+                AHEAD=$(echo "$AHEAD_BEHIND" | awk '{print $2}')
+                
+                if [ "$BEHIND" -gt 0 ] && [ "$AHEAD" -gt 0 ]; then
+                    UPSTREAM_STATUS="${RED}↓$BEHIND ${GREEN}↑$AHEAD${NC}"
+                elif [ "$BEHIND" -gt 0 ]; then
+                    UPSTREAM_STATUS="${RED}↓$BEHIND${NC}"
+                elif [ "$AHEAD" -gt 0 ]; then
+                    UPSTREAM_STATUS="${GREEN}↑$AHEAD${NC}"
+                else
+                    UPSTREAM_STATUS="${GREEN}Up to date${NC}"
+                fi
+            else
+                UPSTREAM_STATUS="${YELLOW}No upstream${NC}"
+            fi
+        else
+            UPSTREAM_STATUS="${YELLOW}No upstream${NC}"
+        fi
+        
+        # Get local status
+        STATUS=$(git status -s)
+        if [ -z "$STATUS" ]; then
+            LOCAL_STATUS="${GREEN}No changes${NC}"
+            HAS_CHANGES=false
+        else
+            MODIFIED=$(echo "$STATUS" | grep -c "^ M\|^MM")
+            ADDED=$(echo "$STATUS" | grep -c "^A\|^AM")
+            DELETED=$(echo "$STATUS" | grep -c "^ D")
+            UNTRACKED=$(echo "$STATUS" | grep -c "^??")
+            
+            LOCAL_STATUS=""
+            [ "$MODIFIED" -gt 0 ] && LOCAL_STATUS+="${YELLOW}M:$MODIFIED ${NC}"
+            [ "$ADDED" -gt 0 ] && LOCAL_STATUS+="${GREEN}A:$ADDED ${NC}"
+            [ "$DELETED" -gt 0 ] && LOCAL_STATUS+="${RED}D:$DELETED ${NC}"
+            [ "$UNTRACKED" -gt 0 ] && LOCAL_STATUS+="${BLUE}?:$UNTRACKED${NC}"
+            HAS_CHANGES=true
+        fi
+        
+        printf "%-25s ${GREEN}%-15s${NC} %-20b %-30b\n" "Main" "$CURRENT_BRANCH" "$UPSTREAM_STATUS" "$LOCAL_STATUS"
+        
+        # Show changed files if any
+        if [ "$HAS_CHANGES" = true ]; then
+            echo -e "  ${BLUE}Changed files:${NC}"
+            echo "$STATUS" | while read -r line; do
+                STATUS_CODE=$(echo "$line" | cut -c1-2 | xargs)
+                FILE_NAME=$(echo "$line" | cut -c3- | xargs)
+                
+                case "$STATUS_CODE" in
+                    "M"*|" M"|"MM") 
+                        STATUS_TEXT="Modified"
+                        COLOR=$YELLOW ;;
+                    "A"*) 
+                        STATUS_TEXT="Added"
+                        COLOR=$GREEN ;;
+                    "D"*|" D") 
+                        STATUS_TEXT="Deleted"
+                        COLOR=$RED ;;
+                    "R"*) 
+                        STATUS_TEXT="Renamed"
+                        COLOR=$BLUE ;;
+                    "C"*) 
+                        STATUS_TEXT="Copied"
+                        COLOR=$BLUE ;;
+                    "U"*) 
+                        STATUS_TEXT="Updated"
+                        COLOR=$RED ;;
+                    "??") 
+                        STATUS_TEXT="Untracked"
+                        COLOR=$BLUE ;;
+                    *) 
+                        STATUS_TEXT="$STATUS_CODE"
+                        COLOR=$NC ;;
+                esac
+                
+                echo -e "    ${COLOR}${STATUS_TEXT}:${NC} ${FILE_NAME}"
+            done
+        fi
+        
         echo ""
         
         # Get list of submodules
@@ -160,16 +328,94 @@ case "$COMMAND" in
         # Check status of each submodule
         for SUBMODULE in $SUBMODULES; do
             if [ -d "$SUBMODULE" ]; then
-                echo -e "${BLUE}Status of ${YELLOW}$SUBMODULE${NC}:"
                 cd "$SUBMODULE" || continue
                 
                 # Get current branch
                 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-                echo -e "${GREEN}On branch $CURRENT_BRANCH${NC}"
                 
-                # Show status
-                git status -s
-                echo ""
+                # Get ahead/behind counts
+                UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null)
+                
+                if [ -n "$UPSTREAM" ]; then
+                    AHEAD_BEHIND=$(git rev-list --left-right --count "$UPSTREAM"..."$CURRENT_BRANCH" 2>/dev/null)
+                    if [ $? -eq 0 ]; then
+                        BEHIND=$(echo "$AHEAD_BEHIND" | awk '{print $1}')
+                        AHEAD=$(echo "$AHEAD_BEHIND" | awk '{print $2}')
+                        
+                        if [ "$BEHIND" -gt 0 ] && [ "$AHEAD" -gt 0 ]; then
+                            UPSTREAM_STATUS="${RED}↓$BEHIND ${GREEN}↑$AHEAD${NC}"
+                        elif [ "$BEHIND" -gt 0 ]; then
+                            UPSTREAM_STATUS="${RED}↓$BEHIND${NC}"
+                        elif [ "$AHEAD" -gt 0 ]; then
+                            UPSTREAM_STATUS="${GREEN}↑$AHEAD${NC}"
+                        else
+                            UPSTREAM_STATUS="${GREEN}Up to date${NC}"
+                        fi
+                    else
+                        UPSTREAM_STATUS="${YELLOW}No upstream${NC}"
+                    fi
+                else
+                    UPSTREAM_STATUS="${YELLOW}No upstream${NC}"
+                fi
+                
+                # Get local status
+                STATUS=$(git status -s)
+                if [ -z "$STATUS" ]; then
+                    LOCAL_STATUS="${GREEN}No changes${NC}"
+                    HAS_CHANGES=false
+                else
+                    MODIFIED=$(echo "$STATUS" | grep -c "^ M\|^MM")
+                    ADDED=$(echo "$STATUS" | grep -c "^A\|^AM")
+                    DELETED=$(echo "$STATUS" | grep -c "^ D")
+                    UNTRACKED=$(echo "$STATUS" | grep -c "^??")
+                    
+                    LOCAL_STATUS=""
+                    [ "$MODIFIED" -gt 0 ] && LOCAL_STATUS+="${YELLOW}M:$MODIFIED ${NC}"
+                    [ "$ADDED" -gt 0 ] && LOCAL_STATUS+="${GREEN}A:$ADDED ${NC}"
+                    [ "$DELETED" -gt 0 ] && LOCAL_STATUS+="${RED}D:$DELETED ${NC}"
+                    [ "$UNTRACKED" -gt 0 ] && LOCAL_STATUS+="${BLUE}?:$UNTRACKED${NC}"
+                    HAS_CHANGES=true
+                fi
+                
+                printf "%-25s ${GREEN}%-15s${NC} %-20b %-30b\n" "$SUBMODULE" "$CURRENT_BRANCH" "$UPSTREAM_STATUS" "$LOCAL_STATUS"
+                
+                # Show changed files if any
+                if [ "$HAS_CHANGES" = true ]; then
+                    echo -e "  ${BLUE}Changed files:${NC}"
+                    echo "$STATUS" | while read -r line; do
+                        STATUS_CODE=$(echo "$line" | cut -c1-2 | xargs)
+                        FILE_NAME=$(echo "$line" | cut -c3- | xargs)
+                        
+                        case "$STATUS_CODE" in
+                            "M"*|" M"|"MM") 
+                                STATUS_TEXT="Modified"
+                                COLOR=$YELLOW ;;
+                            "A"*) 
+                                STATUS_TEXT="Added"
+                                COLOR=$GREEN ;;
+                            "D"*|" D") 
+                                STATUS_TEXT="Deleted"
+                                COLOR=$RED ;;
+                            "R"*) 
+                                STATUS_TEXT="Renamed"
+                                COLOR=$BLUE ;;
+                            "C"*) 
+                                STATUS_TEXT="Copied"
+                                COLOR=$BLUE ;;
+                            "U"*) 
+                                STATUS_TEXT="Updated"
+                                COLOR=$RED ;;
+                            "??") 
+                                STATUS_TEXT="Untracked"
+                                COLOR=$BLUE ;;
+                            *) 
+                                STATUS_TEXT="$STATUS_CODE"
+                                COLOR=$NC ;;
+                        esac
+                        
+                        echo -e "    ${COLOR}${STATUS_TEXT}:${NC} ${FILE_NAME}"
+                    done
+                fi
                 
                 # Return to main directory
                 cd "$CURRENT_DIR" || exit
@@ -606,12 +852,41 @@ case "$COMMAND" in
                     fi
                 fi
                 
+                # After each PR is created, collect metadata
+                if echo "$RESPONSE" | grep -q "web_url"; then
+                    MR_URL=$(echo "$RESPONSE" | grep -o '"web_url":"[^"]*"' | sed 's/"web_url":"//;s/"$//')
+                    PR_METADATA+=("$SUBMODULE|$REMOTE_URL|$CURRENT_BRANCH|$MR_URL")
+                elif echo "$RESPONSE" | grep -q "html_url"; then
+                    PR_URL=$(echo "$RESPONSE" | grep -o '"html_url":"[^"]*"' | grep "/pull/" | sed 's/"html_url":"//;s/"$//')
+                    PR_METADATA+=("$SUBMODULE|$REMOTE_URL|$CURRENT_BRANCH|$PR_URL")
+                fi
+                
                 # Return to main directory
                 cd "$CURRENT_DIR" || exit
             fi
         done
         
-        echo -e "${GREEN}=== Pull request creation completed ===${NC}"
+        # After all PRs, create and push tag in each affected repo
+        if [ ${#PR_METADATA[@]} -gt 0 ]; then
+            TAG_NAME="multi-pr-$(date +%Y%m%d-%H%M%S)"
+            AUTHOR=$(git config user.name)
+            TIMESTAMP=$(date -u)
+            METADATA="Multi-repo PR by $AUTHOR on $TIMESTAMP\nPR title: $PR_TITLE\n\nRelated PRs:"
+            for entry in "${PR_METADATA[@]}"; do
+                IFS='|' read -r SUBMODULE REMOTE_URL BRANCH PR_URL <<< "$entry"
+                METADATA+="\n- $SUBMODULE ($REMOTE_URL) branch: $BRANCH PR: $PR_URL"
+            done
+            for entry in "${PR_METADATA[@]}"; do
+                IFS='|' read -r SUBMODULE REMOTE_URL BRANCH PR_URL <<< "$entry"
+                if [ -d "$SUBMODULE" ]; then
+                    cd "$SUBMODULE" || continue
+                    git tag -a "$TAG_NAME" -m "$METADATA"
+                    git push origin "$TAG_NAME"
+                    echo -e "${GREEN}Created and pushed tag $TAG_NAME in $SUBMODULE${NC}"
+                    cd - >/dev/null || exit
+                fi
+            done
+        fi
         ;;
         
     help)
@@ -623,4 +898,4 @@ case "$COMMAND" in
         show_help
         exit 1
         ;;
-esac 
+esac

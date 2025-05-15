@@ -121,6 +121,26 @@ function copyToClipboard(text, callback) {
         });
 }
 
+// Helper to fetch all accessible GitLab repos with pagination
+async function fetchAllGitLabRepos(gitlabToken) {
+    let repos = [];
+    let page = 1;
+    let perPage = 100;
+    let more = true;
+    while (more) {
+        const resp = await fetch(`https://gitlab.com/api/v4/projects?membership=true&simple=true&per_page=${perPage}&page=${page}`, {
+            headers: { 'Authorization': `Bearer ${gitlabToken}` }
+        });
+        if (!resp.ok) throw new Error('Failed to fetch repositories from GitLab');
+        const data = await resp.json();
+        repos = repos.concat(data);
+        more = data.length === perPage;
+        page++;
+    }
+    // Return unique HTTPS URLs only
+    return Array.from(new Set(repos.map(r => r.http_url_to_repo).filter(Boolean)));
+}
+
 // Initialize the popup
 function initializePopup() {
     console.log("Initializing popup");
@@ -182,11 +202,13 @@ function initializePopup() {
             gitlabTokenInput.value = data.gitlabToken;
         }
         
-        // Load repository list
-        loadRepositoryList(data.repoUrls || "");
-        
-        // Update workspace repo selection
-        updateWorkspaceRepoSelection(data.repoUrls || "");
+        // Show/hide add repo form based on token
+        showOrHideAddRepoForm(!!data.gitlabToken);
+        // Always use current search value for filtering
+        const searchInput = document.getElementById("repo-search");
+        const searchValue = searchInput ? searchInput.value : "";
+        loadRepositoryList(data.repoUrls || "", searchValue, true);
+        updateWorkspaceRepoSelection(data.repoUrls || "", searchValue, true);
         
         // Load unified PRs
         loadUnifiedPRs();
@@ -225,17 +247,28 @@ function saveSettings() {
         }
         return response.json();
     })
-    .then(userData => {
-        // Save settings with username
+    .then(async userData => {
+        // Show loading message
+        showMessage("Fetching all accessible repositories from GitLab...");
+        let repoUrls = [];
+        try {
+            repoUrls = await fetchAllGitLabRepos(gitlabToken);
+        } catch (err) {
+            displayError("Repo Fetch Error", err.message);
+        }
+        // Save settings with username and repoUrls
         chrome.storage.sync.set({
             backendUrl: backendUrl,
             gitlabToken: gitlabToken,
-            username: userData.username
+            username: userData.username,
+            repoUrls: repoUrls.join("\n")
         }, function() {
-            // Show success message
-            showMessage("Settings saved successfully");
-            
-            // Reload unified PRs with new settings
+            showMessage("Settings and repositories saved successfully");
+            showOrHideAddRepoForm(true);
+            const searchInput = document.getElementById("repo-search");
+            const searchValue = searchInput ? searchInput.value : "";
+            loadRepositoryList(repoUrls.join("\n"), searchValue, true);
+            updateWorkspaceRepoSelection(repoUrls.join("\n"), searchValue, true);
             loadUnifiedPRs();
         });
     })
@@ -245,9 +278,63 @@ function saveSettings() {
     });
 }
 
+// Show or hide add repository form based on token
+function showOrHideAddRepoForm(tokenPresent) {
+    const repoForm = document.getElementById("repo-form");
+    const repoAddHelp = document.getElementById("repo-add-help");
+    const repoListSection = document.getElementById("repo-list-section");
+    if (repoForm && repoAddHelp && repoListSection) {
+        if (tokenPresent) {
+            repoForm.style.display = "flex";
+            repoAddHelp.style.display = "none";
+            repoListSection.style.display = "block";
+        } else {
+            repoForm.style.display = "none";
+            repoAddHelp.style.display = "block";
+            repoListSection.style.display = "none";
+        }
+    }
+}
+
 // Export functions for use in other modules
 window.displayError = displayError;
 window.showMessage = showMessage;
 window.findElementWithText = findElementWithText;
 window.copyToClipboard = copyToClipboard;
-window.initializePopup = initializePopup; 
+window.initializePopup = initializePopup;
+
+function loadRepositoryList(repoUrlsString, searchTerm = "", updateAllRepos = false) {
+    const repoList = document.getElementById("repo-list");
+    if (!repoList) return;
+    const tbody = repoList.querySelector("tbody");
+    if (!tbody) return;
+    const emptyState = document.getElementById("empty-repos");
+    // ... rest of the function ...
+}
+
+function updateWorkspaceRepoSelection(repoUrlsString, searchTerm = "", updateAllRepos = false) {
+    const container = document.getElementById("workspace-repo-selection");
+    if (!container) return;
+    const emptyState = document.getElementById("empty-workspace-repos");
+    // ... rest of the function ...
+}
+
+function addRepository() {
+    const url = document.getElementById("repo-url").value.trim();
+    if (!url) {
+        alert("Please enter a repository URL");
+        return;
+    }
+
+    chrome.storage.sync.get(["repoUrls"], function(data) {
+        const existingRepos = data.repoUrls
+            ? data.repoUrls.split("\n").filter(u => u.trim()).map(u => u.trim().toLowerCase().replace(/\/$/, ""))
+            : [];
+        const urlNormalized = url.toLowerCase().replace(/\/$/, "");
+        if (existingRepos.includes(urlNormalized)) {
+            alert("This repository is already in the list");
+            return;
+        }
+        // ... rest of add logic ...
+    });
+} 
