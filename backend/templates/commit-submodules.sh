@@ -60,9 +60,15 @@ for SUBMODULE in $SUBMODULES; do
             # We're in detached HEAD state
             echo -e "  ${YELLOW}Detached HEAD state detected${NC}"
             
-            # Ask user for branch name to create or use
-            echo -e "  ${YELLOW}Enter branch name to commit changes to (will be created if it doesn't exist):${NC}"
-            read -r BRANCH_NAME
+            if [ -t 0 ]; then
+                # Interactive: Ask user for branch name
+                echo -e "  ${YELLOW}Enter branch name to commit changes to (will be created if it doesn't exist):${NC}"
+                read -r BRANCH_NAME
+            else
+                # Non-interactive: Use default branch name
+                BRANCH_NAME="changes-$(date +%Y%m%d%H%M%S)"
+                echo -e "  ${YELLOW}No TTY detected, using generated branch name: $BRANCH_NAME${NC}"
+            fi
             
             if [ -z "$BRANCH_NAME" ]; then
                 BRANCH_NAME="changes-$(date +%Y%m%d%H%M%S)"
@@ -90,22 +96,32 @@ for SUBMODULE in $SUBMODULES; do
         git commit -m "$COMMIT_MESSAGE"
         echo -e "  ${GREEN}Changes committed in $SUBMODULE${NC}"
         
-        # Ask if user wants to push changes
-        echo -e "  ${YELLOW}Do you want to push the changes to remote? (y/n)${NC}"
-        read -r PUSH_RESPONSE
-        
-        if [[ "$PUSH_RESPONSE" =~ ^[Yy]$ ]]; then
-            # Push changes to the specific branch
+        # Push changes
+        if [ -t 0 ]; then
+            # Interactive: Ask user if they want to push
+            echo -e "  ${YELLOW}Do you want to push the changes to remote? (y/n)${NC}"
+            read -r PUSH_RESPONSE
+            if [[ "$PUSH_RESPONSE" =~ ^[Yy]$ ]]; then
+                git push origin "$CURRENT_BRANCH"
+                if [ $? -eq 0 ]; then
+                    echo -e "  ${GREEN}Changes pushed to remote for $SUBMODULE${NC}"
+                else
+                    echo -e "  ${RED}Failed to push changes to remote for $SUBMODULE${NC}"
+                    echo -e "  ${YELLOW}You may need to manually push with: git push -u origin $CURRENT_BRANCH${NC}"
+                fi
+            else
+                echo -e "  ${YELLOW}Changes NOT pushed to remote for $SUBMODULE${NC}"
+            fi
+        else
+            # Non-interactive: Always push
+            echo -e "  ${YELLOW}No TTY detected, automatically pushing changes to remote${NC}"
             git push origin "$CURRENT_BRANCH"
-            
             if [ $? -eq 0 ]; then
                 echo -e "  ${GREEN}Changes pushed to remote for $SUBMODULE${NC}"
             else
                 echo -e "  ${RED}Failed to push changes to remote for $SUBMODULE${NC}"
                 echo -e "  ${YELLOW}You may need to manually push with: git push -u origin $CURRENT_BRANCH${NC}"
             fi
-        else
-            echo -e "  ${YELLOW}Changes NOT pushed to remote for $SUBMODULE${NC}"
         fi
         
         CHANGES_MADE=true
@@ -126,19 +142,24 @@ if $CHANGES_MADE; then
     # Commit the submodule updates
     git commit -m "Updated submodules: $COMMIT_MESSAGE"
     
-    # Ask if user wants to push changes to the main repository
-    echo -e "${YELLOW}Do you want to push the submodule updates to the main repository? (y/n)${NC}"
-    read -r PUSH_MAIN
-    
-    if [[ "$PUSH_MAIN" =~ ^[Yy]$ ]]; then
-        # Get current branch
+    # Push changes to main repo
+    if [ -t 0 ]; then
+        # Interactive: Ask user if they want to push
+        echo -e "${YELLOW}Do you want to push the submodule updates to the main repository? (y/n)${NC}"
+        read -r PUSH_MAIN
+        if [[ "$PUSH_MAIN" =~ ^[Yy]$ ]]; then
+            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+            git push origin "$CURRENT_BRANCH"
+            echo -e "${GREEN}Changes pushed to remote for the main repository${NC}"
+        else
+            echo -e "${YELLOW}Changes NOT pushed to remote for the main repository${NC}"
+        fi
+    else
+        # Non-interactive: Always push
+        echo -e "${YELLOW}No TTY detected, automatically pushing submodule updates to main repository${NC}"
         CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-        
-        # Push changes
         git push origin "$CURRENT_BRANCH"
         echo -e "${GREEN}Changes pushed to remote for the main repository${NC}"
-    else
-        echo -e "${YELLOW}Changes NOT pushed to remote for the main repository${NC}"
     fi
     
     echo -e "${GREEN}=== Done! Submodule changes have been committed and the main repository has been updated ===${NC}"

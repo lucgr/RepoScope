@@ -12,6 +12,19 @@ function filterRepos(searchTerm) {
     return allRepos.filter(repo => repo.toLowerCase().includes(lower));
 }
 
+async function userHasAccessToRepo(owner, repo, token) {
+    const urlEncodedPath = encodeURIComponent(owner + '/' + repo);
+    const apiUrl = `https://gitlab.com/api/v4/projects/${urlEncodedPath}`;
+    try {
+        const resp = await fetch(apiUrl, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        return resp.ok;
+    } catch (e) {
+        return false;
+    }
+}
+
 // Function to add a repository
 function addRepository() {
     const urlInput = document.getElementById("new-repo-url");
@@ -25,10 +38,22 @@ function addRepository() {
         alert("Please enter a valid GitLab repository URL (https://gitlab.com/...)");
         return;
     }
-    chrome.storage.sync.get(["repoUrls"], function(data) {
+    chrome.storage.sync.get(["repoUrls", "gitlabToken"], async function(data) {
         const newRepoKey = extractRepoOwnerAndName(url);
         if (!newRepoKey) {
             alert("Could not parse repository owner and name from URL");
+            return;
+        }
+        const [owner, repo] = newRepoKey.split("/");
+        const token = data.gitlabToken;
+        if (!token) {
+            alert("No GitLab token found. Please save your token first.");
+            return;
+        }
+        // Check access before adding
+        const hasAccess = await userHasAccessToRepo(owner, repo, token);
+        if (!hasAccess) {
+            alert("You do not have access to this repository with your current GitLab token.");
             return;
         }
         const existingRepos = data.repoUrls
@@ -222,4 +247,14 @@ function extractRepoOwnerAndName(url) {
     const owner = parts[1].toLowerCase();
     const repo = parts[2].toLowerCase();
     return owner + '/' + repo;
-} 
+}
+
+// Inject Material Icons font if not already present
+(function() {
+    if (!document.querySelector('link[href*="fonts.googleapis.com/icon?family=Material+Icons"]')) {
+        const link = document.createElement('link');
+        link.href = 'https://fonts.googleapis.com/icon?family=Material+Icons';
+        link.rel = 'stylesheet';
+        document.head.appendChild(link);
+    }
+})(); 

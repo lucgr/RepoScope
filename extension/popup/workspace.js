@@ -181,189 +181,177 @@ function createVirtualWorkspace() {
             if (spinner) spinner.remove();
         }
         
-        // Read the commit submodules script content
-        fetch(chrome.runtime.getURL("/backend-scripts/commit-submodules.sh"))
-            .then(response => response.text())
-            .then(scriptContent => {
-                // Prepare comprehensive payload with explicit naming directives
-                const payload = {
-                    name: workspaceName,                  // Standard name field
-                    workspace_name: workspaceName,        // Older API compatibility
-                    repo_name: workspaceName,             // Explicit repository name
-                    repository_name: workspaceName,       // Alternative naming field
-                    project_name: workspaceName,          // GitLab specific
-                    task_name: taskName,
-                    branch_name: branchName,
-                    repo_urls: selectedRepos,
-                    use_custom_name: true,                // Flag to use custom name
-                    use_workspace_name: true,             // Alternative flag
-                    force_name_override: true,            // Force override branch-based naming
-                    script_content: scriptContent
+        // Remove the fetch for commit-submodules.sh and send the payload directly
+        const payload = {
+            name: workspaceName,                  // Standard name field
+            workspace_name: workspaceName,        // Older API compatibility
+            repo_name: workspaceName,             // Explicit repository name
+            repository_name: workspaceName,       // Alternative naming field
+            project_name: workspaceName,          // GitLab specific
+            task_name: taskName,
+            branch_name: branchName,
+            repo_urls: selectedRepos,
+            use_custom_name: true,                // Flag to use custom name
+            use_workspace_name: true,             // Alternative flag
+            force_name_override: true             // Force override branch-based naming
+        };
+        
+        console.log("Creating workspace with payload:", payload);
+        
+        // Create workspace request
+        fetch(`${backendUrl}/api/workspace/create`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-gitlab-token": gitlabToken,
+                "x-requested-name": workspaceName         // Additional header for name
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => {
+            if (!response.ok) {
+                // Try to get error details from response
+                return response.json().then(errData => {
+                    console.error("Error details from API:", errData);
+                    throw new Error(`Failed to create workspace: ${response.status} - ${errData.detail || JSON.stringify(errData)}`);
+                }).catch(err => {
+                    if (err.message.includes("Failed to create workspace")) {
+                        throw err;
+                    }
+                    throw new Error(`Failed to create workspace: ${response.status}`);
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log("Workspace created, API response:", data);
+            
+            // Show result
+            resultDiv.style.display = "block";
+            
+            // Log all potential URL fields for debugging
+            console.log("URL fields in response:", {
+                clone_url: data.clone_url,
+                cloneUrl: data.cloneUrl,
+                url: data.url,
+                path: data.path,
+                local_path: data.local_path,
+                git_url: data.git_url,
+                ssh_url: data.ssh_url,
+                repository_url: data.repository_url
+            });
+            
+            let cloneUrl;
+            
+            // Check if we have a local file path (Windows or Unix style)
+            const isWindowsPath = /^[A-Z]:\\/.test(data.clone_url || data.cloneUrl || data.path || data.local_path || "");
+            const isUnixPath = /^\/(?!http)/.test(data.clone_url || data.cloneUrl || data.path || data.local_path || "");
+            
+            if (isWindowsPath || isUnixPath) {
+                console.log("Detected local file path");
+                
+                // If we have a local file path, use it directly
+                const localPaths = [
+                    data.local_path,
+                    data.path,
+                    data.clone_url,
+                    data.cloneUrl
+                ].filter(p => p && (p.includes(":\\") || p.startsWith("/"))); // Filter for valid file paths
+                
+                if (localPaths.length > 0) {
+                    // Check if the path contains the workspace name
+                    const pathWithWorkspaceName = localPaths.find(p => 
+                        p.includes(workspaceName) || 
+                        p.endsWith(workspaceName) || 
+                        p.endsWith(`${workspaceName}.git`)
+                    );
+                    
+                    // Prefer path with workspace name, otherwise use the first path
+                    cloneUrl = pathWithWorkspaceName || localPaths[0];
+                    
+                    console.log("Using local file path:", cloneUrl);
+                } else {
+                    // Construct a path based on standard temp directories
+                    console.log("No valid local path found, constructing a default");
+                    
+                    // Guess a reasonable local path
+                    if (navigator.platform.includes("Win")) {
+                        cloneUrl = `C:\\Users\\${navigator.userAgent.split("Windows NT ")[1]?.split(";")[0] || "username"}\\AppData\\Local\\Temp\\virtual_workspaces\\${workspaceName}`;
+                    } else {
+                        cloneUrl = `/tmp/virtual_workspaces/${workspaceName}`;
+                    }
+                }
+            } else {
+                // Not a local path, proceed with the normal URL handling
+                // Complete URLs provided by the API (prefer these)
+                const possibleUrls = [
+                    data.clone_url,
+                    data.cloneUrl,
+                    data.git_url,
+                    data.url,
+                    data.repository_url,
+                    data.web_url
+                ].filter(u => u); // Filter out undefined or empty values
+                
+                // First try to find a URL that contains the workspace name
+                const preferredUrl = possibleUrls.find(url => 
+                    url.includes(workspaceName) || url.includes(encodeURIComponent(workspaceName))
+                );
+                
+                // Use the preferred URL if found, otherwise use the first URL in the list
+                cloneUrl = preferredUrl || possibleUrls[0];
+                
+                // If we still don't have a URL, construct one using our helper
+                if (!cloneUrl) {
+                    if (selectedRepos.length > 0) {
+                        // Use the first selected repo URL as a base
+                        const baseUrl = selectedRepos[0].replace(/\/[^\/]+\.git$/, "");
+                        cloneUrl = ensureValidCloneUrl(null, baseUrl, workspaceName);
+                    } else {
+                        // Last resort: guess a URL
+                        cloneUrl = `https://gitlab.com/your-user/${workspaceName}.git`;
+                    }
+                }
+            }
+            
+            // Final validation and cleanup
+            if (cloneUrl) {
+                // Update clone command with the correct URL
+                updateCloneCommand(cloneUrl);
+                
+                // Record workspace in history
+                const workspace = {
+                    name: workspaceName,
+                    branch: branchName,
+                    task: taskName,
+                    repos: selectedRepos, // Ensure this is an array of repo URLs
+                    clone_url: cloneUrl,
+                    created_at: new Date().toISOString()
                 };
                 
-                console.log("Creating workspace with payload:", payload);
+                // Debug: log what's being stored
+                console.log("Storing workspace with repos:", workspace.repos);
+                console.log("Storing clone URL:", cloneUrl);
                 
-                // Create workspace request
-                fetch(`${backendUrl}/api/workspace/create`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "x-gitlab-token": gitlabToken,
-                        "x-requested-name": workspaceName         // Additional header for name
-                    },
-                    body: JSON.stringify(payload)
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        // Try to get error details from response
-                        return response.json().then(errData => {
-                            console.error("Error details from API:", errData);
-                            throw new Error(`Failed to create workspace: ${response.status} - ${errData.detail || JSON.stringify(errData)}`);
-                        }).catch(err => {
-                            if (err.message.includes("Failed to create workspace")) {
-                                throw err;
-                            }
-                            throw new Error(`Failed to create workspace: ${response.status}`);
-                        });
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log("Workspace created, API response:", data);
-                    
-                    // Show result
-                    resultDiv.style.display = "block";
-                    
-                    // Log all potential URL fields for debugging
-                    console.log("URL fields in response:", {
-                        clone_url: data.clone_url,
-                        cloneUrl: data.cloneUrl,
-                        url: data.url,
-                        path: data.path,
-                        local_path: data.local_path,
-                        git_url: data.git_url,
-                        ssh_url: data.ssh_url,
-                        repository_url: data.repository_url
-                    });
-                    
-                    let cloneUrl;
-                    
-                    // Check if we have a local file path (Windows or Unix style)
-                    const isWindowsPath = /^[A-Z]:\\/.test(data.clone_url || data.cloneUrl || data.path || data.local_path || "");
-                    const isUnixPath = /^\/(?!http)/.test(data.clone_url || data.cloneUrl || data.path || data.local_path || "");
-                    
-                    if (isWindowsPath || isUnixPath) {
-                        console.log("Detected local file path");
-                        
-                        // If we have a local file path, use it directly
-                        const localPaths = [
-                            data.local_path,
-                            data.path,
-                            data.clone_url,
-                            data.cloneUrl
-                        ].filter(p => p && (p.includes(":\\") || p.startsWith("/"))); // Filter for valid file paths
-                        
-                        if (localPaths.length > 0) {
-                            // Check if the path contains the workspace name
-                            const pathWithWorkspaceName = localPaths.find(p => 
-                                p.includes(workspaceName) || 
-                                p.endsWith(workspaceName) || 
-                                p.endsWith(`${workspaceName}.git`)
-                            );
-                            
-                            // Prefer path with workspace name, otherwise use the first path
-                            cloneUrl = pathWithWorkspaceName || localPaths[0];
-                            
-                            console.log("Using local file path:", cloneUrl);
-                        } else {
-                            // Construct a path based on standard temp directories
-                            console.log("No valid local path found, constructing a default");
-                            
-                            // Guess a reasonable local path
-                            if (navigator.platform.includes("Win")) {
-                                cloneUrl = `C:\\Users\\${navigator.userAgent.split("Windows NT ")[1]?.split(";")[0] || "username"}\\AppData\\Local\\Temp\\virtual_workspaces\\${workspaceName}`;
-                            } else {
-                                cloneUrl = `/tmp/virtual_workspaces/${workspaceName}`;
-                            }
-                        }
-                    } else {
-                        // Not a local path, proceed with the normal URL handling
-                        // Complete URLs provided by the API (prefer these)
-                        const possibleUrls = [
-                            data.clone_url,
-                            data.cloneUrl,
-                            data.git_url,
-                            data.url,
-                            data.repository_url,
-                            data.web_url
-                        ].filter(u => u); // Filter out undefined or empty values
-                        
-                        // First try to find a URL that contains the workspace name
-                        const preferredUrl = possibleUrls.find(url => 
-                            url.includes(workspaceName) || url.includes(encodeURIComponent(workspaceName))
-                        );
-                        
-                        // Use the preferred URL if found, otherwise use the first URL in the list
-                        cloneUrl = preferredUrl || possibleUrls[0];
-                        
-                        // If we still don't have a URL, construct one using our helper
-                        if (!cloneUrl) {
-                            if (selectedRepos.length > 0) {
-                                // Use the first selected repo URL as a base
-                                const baseUrl = selectedRepos[0].replace(/\/[^\/]+\.git$/, "");
-                                cloneUrl = ensureValidCloneUrl(null, baseUrl, workspaceName);
-                            } else {
-                                // Last resort: guess a URL
-                                cloneUrl = `https://gitlab.com/your-user/${workspaceName}.git`;
-                            }
-                        }
-                    }
-                    
-                    // Final validation and cleanup
-                    if (cloneUrl) {
-                        // Update clone command with the correct URL
-                        updateCloneCommand(cloneUrl);
-                        
-                        // Record workspace in history
-                        const workspace = {
-                            name: workspaceName,
-                            branch: branchName,
-                            task: taskName,
-                            repos: selectedRepos, // Ensure this is an array of repo URLs
-                            clone_url: cloneUrl,
-                            created_at: new Date().toISOString()
-                        };
-                        
-                        // Debug: log what's being stored
-                        console.log("Storing workspace with repos:", workspace.repos);
-                        console.log("Storing clone URL:", cloneUrl);
-                        
-                        addWorkspaceToHistory(workspace);
-                    } else {
-                        document.getElementById("clone-command").textContent = "# Error: Could not determine clone URL";
-                        document.getElementById("workspace-result").style.display = "block";
-                    }
-                    
-                    // Reset button
-                    resetCreateButton();
-                })
-                .catch(error => {
-                    console.error("Failed to create workspace:", error);
-                    
-                    // Show error message
-                    resultDiv.style.display = "block";
-                    document.getElementById("clone-command").textContent = `# Error: ${error.message}`;
-                    
-                    // Reset button
-                    resetCreateButton();
-                });
-            })
-            .catch(error => {
-                console.error("Failed to load commit-submodules.sh:", error);
-                resetCreateButton();
-                resultDiv.style.display = "block";
-                document.getElementById("clone-command").textContent = `# Error: Failed to load helper scripts: ${error.message}`;
-            });
+                addWorkspaceToHistory(workspace);
+            } else {
+                document.getElementById("clone-command").textContent = "# Error: Could not determine clone URL";
+                document.getElementById("workspace-result").style.display = "block";
+            }
+            
+            // Reset button
+            resetCreateButton();
+        })
+        .catch(error => {
+            console.error("Failed to create workspace:", error);
+            
+            // Show error message
+            resultDiv.style.display = "block";
+            document.getElementById("clone-command").textContent = `# Error: ${error.message}`;
+            
+            // Reset button
+            resetCreateButton();
+        });
     });
 }
 
