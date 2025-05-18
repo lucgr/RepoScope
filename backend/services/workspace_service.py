@@ -4,6 +4,7 @@ import logging
 import tempfile
 import shutil
 from typing import List, Tuple
+from urllib.parse import urlparse, urlunparse # For manipulating URLs
 from ..models.pr import VirtualWorkspaceResponse
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ class WorkspaceService:
             logger.error(error_msg)
             return False, error_msg
     
-    def create_virtual_workspace(self, branch_name: str, task_name: str, repo_urls: List[str], workspace_name: str = None, script_content: str = None) -> VirtualWorkspaceResponse:
+    def create_virtual_workspace(self, branch_name: str, task_name: str, repo_urls: List[str], workspace_name: str = None, script_content: str = None, gitlab_token: str = None) -> VirtualWorkspaceResponse:
         """Create a virtual workspace by aggregating multiple repositories as submodules.
         Uses shallow clones (--depth 1) for submodules. Submodule additions are serial.
         """
@@ -82,9 +83,25 @@ class WorkspaceService:
         # Add submodules serially with shallow clone
         for repo_url in repo_urls:
             repo_name = repo_url.split("/")[-1].replace(".git", "")
-            logger.info(f"Adding submodule {repo_name} from {repo_url} (shallow clone)...")
+            
+            authenticated_repo_url = repo_url
+            if gitlab_token and "gitlab.com" in repo_url: # Only add token for gitlab.com URLs
+                parsed_url = urlparse(repo_url)
+                # Reconstruct netloc with token: oauth2:TOKEN@host
+                netloc_with_token = f"oauth2:{gitlab_token}@{parsed_url.hostname}"
+                if parsed_url.port:
+                    netloc_with_token += f":{parsed_url.port}"
+                
+                authenticated_repo_url = urlunparse(
+                    (parsed_url.scheme, netloc_with_token, parsed_url.path, 
+                     parsed_url.params, parsed_url.query, parsed_url.fragment)
+                )
+                logger.info(f"Using authenticated URL for submodule {repo_name}")
+            else:
+                logger.info(f"Adding submodule {repo_name} from {repo_url} (shallow clone)... No token used or not a GitLab URL.")
+
             success, output = self._run_git_command(
-                ["git", "submodule", "add", "--depth", "1", repo_url, repo_name], 
+                ["git", "submodule", "add", "--depth", "1", authenticated_repo_url, repo_name], 
                 cwd=workspace_dir
             )
             if not success:
