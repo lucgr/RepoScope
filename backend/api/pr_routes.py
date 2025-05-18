@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Header
 from typing import List
 from pydantic import BaseModel
 from ..models.pr import PR, UnifiedPR
 from ..services.pr_service import PRService
-from ..config import gl
+from ..config import get_gitlab_client
+import gitlab
 import logging
 
 # Configure logger
@@ -14,8 +15,15 @@ router = APIRouter(prefix="/api/prs", tags=["pull-requests"])
 class ApproveRequest(BaseModel):
     repo_urls: List[str]
 
-def get_pr_service():
-    return PRService(gl)
+def get_pr_service(x_gitlab_token: str = Header(...)) -> PRService:
+    try:
+        gitlab_client = get_gitlab_client(token=x_gitlab_token)
+        return PRService(gitlab_client)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Failed to initialize PRService: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to initialize GitLab service.")
 
 @router.get("/unified", response_model=List[UnifiedPR])
 async def get_unified_prs(
