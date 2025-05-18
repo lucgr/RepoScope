@@ -1,8 +1,10 @@
+// This file is responsible for handling the background tasks and events for the extension.
+
 // Listen for installation and set default settings
 chrome.runtime.onInstalled.addListener(() => {
     chrome.storage.sync.set({
-        backendUrl: "http://localhost:8000",
-        gitlabToken: "",
+        backendUrl: "http://localhost:8000", // TODO: Make this configurable
+        gitlabToken: "", 
         repoUrls: ""
     });
 });

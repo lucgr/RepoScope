@@ -24,6 +24,8 @@ class PR(PRBase):
     pipeline_status: Optional[str] = None  # "success", "failed", "running", "pending", or None
     changes_count: int = 0
     comments_count: int = 0
+    user_has_approved: Optional[bool] = None
+    approvers: Optional[List[dict]] = None
 
 class UnifiedPR(BaseModel):
     task_name: str

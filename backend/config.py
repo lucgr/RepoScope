@@ -24,10 +24,10 @@ logger.info(f"Token present: {bool(gitlab_token)}")
 logger.info(f"Token length: {len(gitlab_token) if gitlab_token else 0}")
 logger.info(f"Token format: {'Valid format' if gitlab_token and len(gitlab_token) > 15 else 'Invalid format - too short'}")
 
-gl = None  # Initialize to None
+gl = None
 
 try:
-    # First, try a simpler check with direct API call
+    # Checking token with direct API call
     logger.info("Verifying token with direct API call...")
     response = requests.get(
         f"{gitlab_url}/api/v4/user",

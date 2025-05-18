@@ -9,11 +9,11 @@ from ..models.pr import VirtualWorkspaceResponse
 logger = logging.getLogger(__name__)
 
 class WorkspaceService:
+    """Service for creating and managing the virtual monorepo workspaces."""
+
     def __init__(self, workspace_root: str = None):
         """Initialize the workspace service.
-        
-        Args:
-            workspace_root: Root directory for storing virtual workspaces
+            - workspace_root: Root directory for storing virtual workspaces
         """
         self.workspace_root = workspace_root or os.path.join(tempfile.gettempdir(), "virtual_workspaces")
         os.makedirs(self.workspace_root, exist_ok=True)
@@ -31,22 +31,13 @@ class WorkspaceService:
             )
             return True, result.stdout.strip()
         except subprocess.CalledProcessError as e:
-            error_msg = f"Git command failed: {e.stderr}"
+            error_msg = f"Git command failed: {e.stderr.strip() if e.stderr else e.stdout.strip()}" # Log stderr or stdout
             logger.error(error_msg)
             return False, error_msg
     
     def create_virtual_workspace(self, branch_name: str, task_name: str, repo_urls: List[str], workspace_name: str = None, script_content: str = None) -> VirtualWorkspaceResponse:
         """Create a virtual workspace by aggregating multiple repositories as submodules.
-        
-        Args:
-            branch_name: The name of the branch to create
-            task_name: The task associated with this workspace
-            repo_urls: List of repository URLs to add as submodules
-            workspace_name: Optional custom name for the workspace
-            script_content: Optional content for the commit-submodules.sh script
-            
-        Returns:
-            VirtualWorkspaceResponse with status and clone command
+        Uses shallow clones (--depth 1) for submodules. Submodule additions are serial.
         """
         if not repo_urls:
             return VirtualWorkspaceResponse(
@@ -54,7 +45,7 @@ class WorkspaceService:
                 message="No repositories provided"
             )
         
-        # Use workspace_name if provided, otherwise fall back to task_name
+        # Replace slashes and spaces with underscores for safe directory names
         if workspace_name:
             safe_name = workspace_name.replace('/', '_').replace(' ', '_')
         else:
@@ -62,60 +53,49 @@ class WorkspaceService:
             
         workspace_dir = os.path.join(self.workspace_root, safe_name)
         
-        # Check if workspace directory already exists, remove if it does
+        # Remove existing workspace directory if it exists
         if os.path.exists(workspace_dir):
             try:
                 shutil.rmtree(workspace_dir)
                 logger.info(f"Removed existing workspace directory: {workspace_dir}")
             except Exception as e:
                 logger.error(f"Failed to remove existing workspace: {str(e)}")
-                return VirtualWorkspaceResponse(
-                    status="error",
-                    message=f"Failed to remove existing workspace: {str(e)}"
-                )
+                return VirtualWorkspaceResponse(status="error", message=f"Failed to remove existing workspace: {str(e)}")
         
-        # Create workspace directory
+        # Create the workspace directory
         try:
             os.makedirs(workspace_dir)
         except Exception as e:
             logger.error(f"Failed to create workspace directory: {str(e)}")
-            return VirtualWorkspaceResponse(
-                status="error",
-                message=f"Failed to create workspace directory: {str(e)}"
-            )
+            return VirtualWorkspaceResponse(status="error", message=f"Failed to create workspace directory: {str(e)}")
         
-        # Initialize git repository
+        # Initialize the git repository in the workspace directory
         success, output = self._run_git_command(["git", "init"], cwd=workspace_dir)
         if not success:
-            return VirtualWorkspaceResponse(
-                status="error",
-                message=f"Failed to initialize git repository: {output}"
-            )
+            return VirtualWorkspaceResponse(status="error", message=f"Failed to initialize git repository: {output}")
         
-        # Create and checkout branch
+        # Create the branch in the workspace directory
         success, output = self._run_git_command(["git", "checkout", "-b", branch_name], cwd=workspace_dir)
         if not success:
-            return VirtualWorkspaceResponse(
-                status="error",
-                message=f"Failed to create branch: {output}"
-            )
+            return VirtualWorkspaceResponse(status="error", message=f"Failed to create branch: {output}")
         
-        # Add each repo as a submodule
+        # Add submodules serially with shallow clone
         for repo_url in repo_urls:
-            # Extract repo name from URL
             repo_name = repo_url.split("/")[-1].replace(".git", "")
-            
+            logger.info(f"Adding submodule {repo_name} from {repo_url} (shallow clone)...")
             success, output = self._run_git_command(
-                ["git", "submodule", "add", repo_url, repo_name], 
+                ["git", "submodule", "add", "--depth", "1", repo_url, repo_name], 
                 cwd=workspace_dir
             )
             if not success:
+                error_message = f"Failed to add submodule {repo_url}: {output}"
+                logger.error(error_message)
+                # First failure stops and reports.
                 return VirtualWorkspaceResponse(
                     status="error",
-                    message=f"Failed to add submodule for {repo_url}: {output}"
+                    message=error_message
                 )
-            
-            logger.info(f"Added submodule {repo_name} from {repo_url}")
+            logger.info(f"Successfully added submodule {repo_name}")
         
         # Create a README with information about the workspace
         readme_content = f"# Virtual Workspace for {task_name}\n\n"
@@ -127,6 +107,7 @@ class WorkspaceService:
         
         readme_content += "\n## Usage\n\n"
         readme_content += "This workspace includes helper scripts for working with multiple repositories:\n\n"
+        readme_content += "- `./multi-repo.sh init` - Initialize the workspace (submodules are added and branches created)\n"
         readme_content += "- `./multi-repo.sh commit \"Your commit message\"` - Commit changes across all repositories\n"
         readme_content += "- `./multi-repo.sh push` - Push all committed changes\n"
         readme_content += "- `./multi-repo.sh pull` - Pull changes for all repositories\n"
@@ -138,33 +119,27 @@ class WorkspaceService:
         with open(readme_path, "w") as f:
             f.write(readme_content)
         
-        # Create the commit-submodules.sh script from template or content
         self._create_script_from_template(workspace_dir, "commit-submodules.sh", script_content)
-        
-        # Create the multi-repo.sh script
         self._create_script_from_template(workspace_dir, "multi-repo.sh")
             
-        # Commit the changes
-        success, _ = self._run_git_command(["git", "add", "."], cwd=workspace_dir)
+        success, output = self._run_git_command(["git", "add", "."], cwd=workspace_dir)
         if not success:
-            return VirtualWorkspaceResponse(
-                status="error",
-                message="Failed to stage files for commit"
-            )
+            return VirtualWorkspaceResponse(status="error", message=f"Failed to stage files for commit: {output}")
         
-        success, _ = self._run_git_command(
-            ["git", "commit", "-m", f"Create virtual workspace for {task_name}"], 
+        commit_message = f"Create virtual workspace for {task_name}"
+        success, output = self._run_git_command(
+            ["git", "commit", "-m", commit_message], 
             cwd=workspace_dir
         )
         if not success:
-            return VirtualWorkspaceResponse(
-                status="error",
-                message="Failed to commit changes"
-            )
+            # Check for "nothing to commit" which is not a failure in this context if submodules were the only change
+            if "nothing to commit" in output or "no changes added to commit" in output: # Git messages can vary
+                 logger.info(f"Initial commit: {output} - proceeding as this is not an error for workspace creation.")
+            else:
+                return VirtualWorkspaceResponse(status="error", message=f"Failed to commit changes: {output}")
         
-        # Generate clone command
-        clone_url = workspace_dir
-        clone_command = f"git clone {workspace_dir}"
+        clone_url = workspace_dir 
+        clone_command = f"git clone {workspace_dir}" # Implies local cloning
         
         return VirtualWorkspaceResponse(
             status="success",
@@ -175,34 +150,24 @@ class WorkspaceService:
         
     def _create_script_from_template(self, workspace_dir: str, script_name: str, script_content: str = None) -> bool:
         """Create a script file from template or provided content and make it executable.
-        
-        Args:
-            workspace_dir: Directory where the script should be created
-            script_name: Name of the script file to create
-            script_content: Optional content to use instead of template
-            
-        Returns:
-            bool: True if script was created successfully, False otherwise
         """
         script_path = os.path.join(workspace_dir, script_name)
-        template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates", script_name)
+        service_dir = os.path.dirname(os.path.abspath(__file__))
+        template_path = os.path.join(service_dir, "..", "templates", script_name) # Assumes templates are in backend/templates
         
         try:
-            if os.path.exists(template_path):
-                # Use the template file
-                with open(template_path, "r") as src, open(script_path, "w") as dst:
-                    dst.write(src.read())
-                logger.info(f"Created {script_name} script from template")
-            elif script_content:
-                # Use provided script content
+            if script_content: # Prefer provided script content
                 with open(script_path, "w") as f:
                     f.write(script_content)
                 logger.info(f"Created {script_name} script from provided content")
+            elif os.path.exists(template_path): # Use template if provided
+                with open(template_path, "r") as src, open(script_path, "w") as dst:
+                    dst.write(src.read())
+                logger.info(f"Created {script_name} script from template: {template_path}")
             else:
-                logger.warning(f"No template or script content available for {script_name}")
-                return False
+                logger.warning(f"No template or script content available for {script_name}. Template checked at {template_path}")
+                return False # Indicate failure if no content and no template
             
-            # Make the script executable
             os.chmod(script_path, 0o755)
             return True
         except Exception as e:

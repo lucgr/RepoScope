@@ -1,3 +1,5 @@
+// This file is responsible for the content script that runs on the page.
+
 console.log("%c MultiRepoHub Extension Loaded ", "background: #222; color:rgb(82, 218, 172); font-size: 16px;");
 
 // Immediately check storage to verify settings
@@ -106,9 +108,9 @@ async function initializePRView() {
     }
 }
 
-// Watch for URL changes (for GitLab's SPA navigation)
+// Watch for URL changes
 let lastUrl = window.location.href;
-new MutationObserver(() => {
+new MutationObserver(() => { // This observer watches for changes in the DOM
     const url = window.location.href;
     if (url !== lastUrl) {
         lastUrl = url;
@@ -123,6 +125,7 @@ if (document.readyState === "loading") {
     initializePRView();
 }
 
+// TODO: Make this more robust and configurable. Make sure it matches the backend's task name format.
 function extractTaskName(branchName) {
     const patterns = [
         /^(feature|bug|bugfix|hotfix|fix|chore|task)\/([A-Z]+-\d+)/i, // JIRA-style with more prefixes
@@ -139,7 +142,7 @@ function extractTaskName(branchName) {
     return null;
 }
 
-// Add a helper function for proxied fetch requests
+// Add a helper function for proxied fetch requests from the background script.
 function proxyFetch(url, options = {}) {
     return new Promise((resolve, reject) => {
         chrome.runtime.sendMessage({
@@ -161,268 +164,139 @@ function proxyFetch(url, options = {}) {
     });
 }
 
+// Function to add the unified PR view (injected) into the page.
 async function addUnifiedPRView(taskName) {
     try {
         console.log("Starting to add unified PR view for task:", taskName);
         
-        // Get settings from storage
         const { backendUrl, repoUrls, gitlabToken, username } = await chrome.storage.sync.get(["backendUrl", "repoUrls", "gitlabToken", "username"]);
         
         if (!backendUrl || !repoUrls || !gitlabToken || !username) {
-            console.error("Missing required settings:", {
-                hasBackendUrl: !!backendUrl,
-                hasRepoUrls: !!repoUrls,
-                hasGitlabToken: !!gitlabToken,
-                hasUsername: !!username
-            });
+            console.error("Missing required settings");
             return;
         }
 
-        console.log("All settings present, proceeding with fetch");
-
-        // Convert newline-separated URLs to array and encode them
         const urls = repoUrls.split("\n")
             .filter(url => url.trim())
             .map(url => encodeURIComponent(url));
         
-        // Join URLs with '&repo_urls=' to create the query string, use the proxy fetch instead of direct fetch
         const queryString = urls.map(url => `repo_urls=${url}`).join("&");
-        const apiUrl = `${backendUrl}/api/prs/unified?${queryString}`;
+        // Include username for the backend to determine 'user_has_approved'
+        const apiUrl = `${backendUrl}/api/prs/unified?${queryString}&username=${encodeURIComponent(username)}`;
         
         console.log("Fetching unified PRs using proxy from:", apiUrl);
-        const unifiedPRs = await proxyFetch(apiUrl);
-        console.log("Received unified PRs data:", unifiedPRs);
+        const rawUnifiedPRs = await proxyFetch(apiUrl);
+        console.log("Received unified PRs data:", rawUnifiedPRs);
         
-        // Deduplicate PRs within each task based on web_url
-        const dedupedPRs = unifiedPRs.map(task => {
+        // Deduplicate PRs within each task based on web_url - this step might be redundant if backend handles it,
+        // but could be good for client-side robustness if multiple identical PRs were somehow returned for a task.
+        const dedupedUnifiedPRs = rawUnifiedPRs.map(task => {
             const uniquePRs = [];
             const seenUrls = new Set();
-            
-            for (const pr of task.prs) {
-                if (!seenUrls.has(pr.web_url)) {
-                    seenUrls.add(pr.web_url);
-                    uniquePRs.push(pr);
+            if (task.prs) {
+                for (const pr of task.prs) {
+                    if (!seenUrls.has(pr.web_url)) {
+                        seenUrls.add(pr.web_url);
+                        uniquePRs.push(pr);
+                    }
                 }
             }
-            
             return {
                 ...task,
                 prs: uniquePRs
             };
         });
         
-        // Find the task with matching name
-        const taskPRs = dedupedPRs.find(task => task.task_name === taskName);
-        if (!taskPRs) {
-            console.error("No PRs found for task:", taskName);
+        const taskData = dedupedUnifiedPRs.find(task => task.task_name === taskName);
+        if (!taskData || !taskData.prs || taskData.prs.length === 0) {
+            console.warn("No PRs found for task:", taskName, "after processing server response.");
+             const existingView = document.querySelector(".unified-pr-view");
+            if (existingView) existingView.remove(); // Remove old view if any
             return;
         }
 
-        console.log("Found matching task:", taskPRs);
+        console.log("Found matching task with PRs:", taskData);
 
-        // For each PR, check approval status and pipeline status
-        const prsWithStatus = [];
+        // Data from the backend already contains approval and pipeline status per PR
+        // The `isApproved` field for the view now comes from `pr.user_has_approved`
+        const taskWithStatus = {
+            ...taskData,
+            prs: taskData.prs.map(pr => ({
+                ...pr,
+                isApproved: pr.user_has_approved // Map backend field to view field
+            }))
+        };
         
-        for (const pr of taskPRs.prs) {
-            try {
-                // Check approval status
-                const approvalStatus = await checkPRApprovalStatus(pr.web_url);
-                
-                // Check pipeline status if not available from backend
-                let pipelineStatus = pr.pipeline_status;
-                if (!pipelineStatus) {
-                    console.log("Fetching pipeline status for PR:", pr.web_url);
-                    pipelineStatus = await checkPRPipelineStatus(pr.web_url);
-                    console.log("Pipeline status for PR:", pr.web_url, pipelineStatus);
-                }
-                
-                prsWithStatus.push({
-                    ...pr,
-                    isApproved: approvalStatus,
-                    pipeline_status: pipelineStatus
-                });
-            } catch (err) {
-                console.error("Error checking status for PR:", pr.web_url, err);
-                prsWithStatus.push({
-                    ...pr,
-                    isApproved: false,
-                    pipeline_status: null
-                });
-            }
-        }
-
-        const taskWithStatus = { ...taskPRs, prs: prsWithStatus };
-        console.log("Task with status:", taskWithStatus);
+        console.log("Task with mapped status:", taskWithStatus);
         
-        // Create and inject the unified view
         const unifiedView = createUnifiedView(taskWithStatus);
         await injectUnifiedView(unifiedView);
         console.log("Unified view successfully injected");
 
-        // Set up periodic refresh of approval status
-        setInterval(async () => {
+        // Setup periodic refresh
+        // Clear previous interval if one already exists to avoid multiple intervals running
+        if (window.unifiedPRViewRefreshInterval) {
+            clearInterval(window.unifiedPRViewRefreshInterval);
+        }
+        window.unifiedPRViewRefreshInterval = setInterval(async () => {
             try {
-                const updatedPrsWithStatus = [];
-                
-                for (const pr of taskPRs.prs) {
-                    try {
-                        const approvalStatus = await checkPRApprovalStatus(pr.web_url);
-                        const pipelineStatus = await checkPRPipelineStatus(pr.web_url);
-                        
-                        updatedPrsWithStatus.push({
-                            ...pr,
-                            isApproved: approvalStatus,
-                            pipeline_status: pipelineStatus
-                        });
-                    } catch (err) {
-                        console.error("Error in refresh status check:", err);
-                        updatedPrsWithStatus.push({
-                            ...pr,
-                            isApproved: false,
-                            pipeline_status: null
-                        });
+                console.log("Refreshing unified PR view for task:", taskName);
+                // Re-fetch data and update the view for the current task
+                const freshRawUnifiedPRs = await proxyFetch(apiUrl); // apiUrl already includes username
+                const freshDedupedUnifiedPRs = freshRawUnifiedPRs.map(task => {
+                    const uniquePRs = [];
+                    const seenUrls = new Set();
+                    if (task.prs) {
+                        for (const pr of task.prs) {
+                            if (!seenUrls.has(pr.web_url)) {
+                                seenUrls.add(pr.web_url);
+                                uniquePRs.push(pr);
+                            }
+                        }
                     }
-                }
+                    return { ...task, prs: uniquePRs };
+                });
+
+                // Find the task with the matching task name from the deduplicated list.
+                const freshTaskData = freshDedupedUnifiedPRs.find(task => task.task_name === taskName);
                 
-                const updatedTaskWithStatus = { ...taskPRs, prs: updatedPrsWithStatus };
-                const updatedView = createUnifiedView(updatedTaskWithStatus);
-                
-                const existingView = document.querySelector(".unified-pr-view");
-                if (existingView) {
-                    existingView.replaceWith(updatedView);
-                    console.log("Unified view refreshed successfully");
+                // If the task data is found and has PRs, create a new view with the updated data.
+                if (freshTaskData && freshTaskData.prs && freshTaskData.prs.length > 0) {
+                    const freshTaskWithStatus = {
+                        ...freshTaskData,
+                        prs: freshTaskData.prs.map(pr => ({ ...pr, isApproved: pr.user_has_approved }))
+                    };
+                    const updatedView = createUnifiedView(freshTaskWithStatus);
+                    const existingView = document.querySelector(".unified-pr-view");
+                    if (existingView) {
+                        existingView.replaceWith(updatedView);
+                        console.log("Unified view refreshed successfully");
+                    } else {
+                        // If view was removed (user navigated away and came back, or initial load failed partway) try to inject it again.
+                        await injectUnifiedView(updatedView);
+                    }
+                } else { // No data for task during refresh, view not updated or may be removed.
+                    console.log("No data for task during refresh, view not updated or may be removed.");
+                     const existingView = document.querySelector(".unified-pr-view");
+                     if (existingView) {
+                         existingView.innerHTML = "<p>Related PRs for this task may have been merged or closed. Refreshing...</p>"; 
+                     }
                 }
             } catch (error) {
                 console.error("Error during periodic refresh:", error);
             }
-        }, 30000); // Refresh every 30 seconds
+        }, 60000); // Refresh every 60 seconds
+
     } catch (error) {
         console.error("Error adding unified PR view:", error);
     }
 }
 
-async function checkPRApprovalStatus(prUrl) {
-    try {
-        // Extract project and MR ID from URL
-        const match = prUrl.match(/gitlab\.com\/([^/]+(?:\/[^/]+)*?)\/\-\/merge_requests\/(\d+)/);
-        if (!match) {
-            console.error("Could not extract project path and MR ID from URL:", prUrl);
-            return false;
-        }
-
-        const [_, projectPath, mrId] = match;
-        
-        // Get GitLab token and username from storage
-        const { gitlabToken, username } = await chrome.storage.sync.get(["gitlabToken", "username"]);
-        if (!gitlabToken || !username) {
-            console.error("Missing GitLab token or username");
-            return false;
-        }
-
-        // Use proxy fetch for project info
-        try {
-            // First, get the project ID using proxy fetch
-            const projectData = await proxyFetch(`https://gitlab.com/api/v4/projects/${encodeURIComponent(projectPath)}`, {
-                headers: {
-                    "Authorization": `Bearer ${gitlabToken}`
-                }
-            });
-
-            const projectId = projectData.id;
-
-            // Now fetch the MR approvals using proxy fetch
-            const approvalData = await proxyFetch(`https://gitlab.com/api/v4/projects/${projectId}/merge_requests/${mrId}/approvals`, {
-                headers: {
-                    "Authorization": `Bearer ${gitlabToken}`
-                }
-            });
-
-            // Check if the current user has approved
-            if (approvalData.approved_by && Array.isArray(approvalData.approved_by)) {
-                const hasApproved = approvalData.approved_by.some(approver => 
-                    approver.user && approver.user.username === username
-                );
-                console.log(`Approval status for PR ${prUrl}:`, {
-                    username,
-                    hasApproved,
-                    approvers: approvalData.approved_by.map(a => a.user?.username).filter(Boolean)
-                });
-                return hasApproved;
-            }
-            return false;
-        } catch (error) {
-            console.error("Error in proxy fetch for approval status:", error);
-            return false;
-        }
-    } catch (error) {
-        console.error("Error checking PR approval status:", error);
-        return false;
-    }
-}
-
-async function checkPRPipelineStatus(prUrl) {
-    try {
-        // Extract project and MR ID from URL
-        const match = prUrl.match(/gitlab\.com\/([^/]+(?:\/[^/]+)*?)\/\-\/merge_requests\/(\d+)/);
-        if (!match) {
-            console.error("Could not extract project path and MR ID from URL:", prUrl);
-            return null;
-        }
-
-        const [_, projectPath, mrId] = match;
-        
-        // Get GitLab token
-        const { gitlabToken } = await chrome.storage.sync.get(["gitlabToken"]);
-        if (!gitlabToken) {
-            console.error("Missing GitLab token");
-            return null;
-        }
-
-        // First, get the project ID
-        const projectResponse = await fetch(`https://gitlab.com/api/v4/projects/${encodeURIComponent(projectPath)}`, {
-            headers: {
-                "Authorization": `Bearer ${gitlabToken}`
-            }
-        });
-
-        if (!projectResponse.ok) {
-            console.error("Failed to fetch project info:", projectResponse.status);
-            return null;
-        }
-
-        const projectData = await projectResponse.json();
-        const projectId = projectData.id;
-
-        // Now fetch the MR pipelines
-        const pipelinesResponse = await fetch(`https://gitlab.com/api/v4/projects/${projectId}/merge_requests/${mrId}/pipelines`, {
-            headers: {
-                "Authorization": `Bearer ${gitlabToken}`
-            }
-        });
-
-        if (!pipelinesResponse.ok) {
-            console.error("Failed to fetch pipeline status:", pipelinesResponse.status);
-            return null;
-        }
-
-        const pipelines = await pipelinesResponse.json();
-        
-        // Return the status of the latest pipeline, if any
-        if (pipelines && pipelines.length > 0) {
-            return pipelines[0].status;
-        }
-        
-        return null;
-    } catch (error) {
-        console.error("Error checking PR pipeline status:", error);
-        return null;
-    }
-}
-
-// Function to get pipeline status emoji
+// Function to get pipeline status emoji to display in the PR view.
 function getPipelineStatusEmoji(status) {
     if (!status) return "<span class=\"pipeline-status no-pipeline\">No pipelines</span>";
     
+    // TODO: Status emojis dont seem to be working, material icons are not loading.
     switch (status) {
         case "success":
             return "<span class=\"pipeline-status success\"><i class=\"material-icons\">check_circle</i> Pipeline succeeded</span>";
@@ -436,6 +310,7 @@ function getPipelineStatusEmoji(status) {
     }
 }
 
+// Function to create the unified PR view (UI).
 function createUnifiedView(taskPRs) {
     const container = document.createElement("div");
     container.className = "unified-pr-view";
