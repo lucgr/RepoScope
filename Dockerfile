@@ -14,6 +14,11 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Configure git user details for commits made within the container
+# TODO: Make this configurable
+RUN git config --global user.email "lucasgether@gmail.com" && \ 
+    git config --global user.name "Workspace Bot"
+
 # Copy the requirements file into the container at /app
 COPY backend/requirements.txt .
 
