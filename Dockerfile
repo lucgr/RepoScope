@@ -23,4 +23,4 @@ ENV PORT 8000
 # Run main.py when the container launches
 # The application is now 'service_code.main:app'
 # Uvicorn is run from WORKDIR /app, so Python can find the 'service_code' package.
-CMD ["uvicorn", "service_code.main:app", "--host", "0.0.0.0", "--port", "8000"] 
+CMD exec uvicorn service_code.main:app --host 0.0.0.0 --port ${PORT:-8080} 
