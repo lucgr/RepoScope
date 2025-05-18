@@ -36,9 +36,9 @@ MultiRepoHub addresses several key challenges in modern software development:
 
 2. **Configure Settings**:
    - Navigate to the Settings tab in the extension popup
-   - Enter your GitLab API token (requires API access)
-   - Specify the backend URL (default: http://localhost:8000)
-   - Add repositories to track (one URL per line)
+   - Enter your GitLab API token (requires API access). This token is stored securely in your browser and sent to the backend with each request to authorize GitLab operations.
+   - Specify the backend URL (default: http://localhost:8000, or the deployed instance like the public Cloud Run option below).
+   - Add repositories to track
    - All settings are saved automatically and securely in your browser
 
 ### Viewing Unified PRs
@@ -60,15 +60,15 @@ MultiRepoHub addresses several key challenges in modern software development:
 
 1. **Creating a Workspace**:
    - Navigate to the "Virtual Workspace" tab in the extension popup
-   - Enter a workspace name (used for the local repository)
-   - Specify a branch name (will be created in all repositories)
+   - Enter a workspace name (used for the local repository structure)
+   - Specify a branch name (will be created in all repositories if they are cloned as part of a feature development flow later)
    - The task name is automatically extracted from the branch name
    - Select the repositories to include in the workspace
    - Click "Create Virtual Workspace"
-   - Once created, use the provided clone command to get a local copy
+   - Once processing is complete, a ZIP file containing the virtual workspace will be automatically downloaded by your browser. Extract this ZIP to get your workspace.
 
 2. **Using the Workspace**:
-   - After cloning, navigate to the workspace directory
+   - After extracting the ZIP, navigate to the workspace directory
    - Use the provided multi-repo scripts to manage operations across all repositories:
 
 ```bash
@@ -105,8 +105,8 @@ MultiRepoHub addresses several key challenges in modern software development:
      - Creates pull requests for each repository with changes
 
 4. **Workspace History**:
-   - Previously created workspaces are stored in the Workspace History section
-   - Easily clone previously created workspaces without recreating them
+   - Previously created workspaces are listed in the Workspace History section.
+   - You can re-download the ZIP for a previously defined workspace configuration by clicking its entry (note: this re-creates and re-zips the workspace on the backend).
 
 ### UI Elements and What They Display
 
@@ -128,8 +128,8 @@ MultiRepoHub addresses several key challenges in modern software development:
 #### Virtual Workspace Tab
 - **Workspace Form**: Fields to configure a new virtual workspace
 - **Repository Selection**: Checkboxes for selecting repositories to include
-- **Creation Result**: Clone command and success/error messages
-- **Workspace History**: List of previously created workspaces with clone commands
+- **Creation Result**: Status messages about the workspace creation and ZIP download.
+- **Workspace History**: List of previously created workspace configurations, allowing re-download.
 
 #### Injected GitLab View
 - **Related PRs Section**: Appears on merge request pages showing related PRs
@@ -139,15 +139,29 @@ MultiRepoHub addresses several key challenges in modern software development:
 
 ## Backend Setup
 
-The extension requires a backend server to fetch and unify PR data:
+The extension requires a backend server to fetch and unify PR data and create virtual workspaces.
+
+**Option 1: Local Setup**
 
 ```bash
-# Install dependencies
+# Navigate to the backend directory
+cd backend
+
+# Install dependencies (ideally in a virtual environment)
 pip install -r requirements.txt
 
-# Run the server
-uvicorn backend.main:app --reload
+# Run the server (Uvicorn will typically run on http://localhost:8000)
+uvicorn main:app --reload
 ```
+Make sure your extension's Backend URL setting points to `http://localhost:8000`.
+
+**Option 2: Run through the deployed Cloud Run instance**
+
+The backend is designed to be containerized and can be deployed to services like Google Cloud Run. A `Dockerfile` is provided in the root of the project.
+A publicly accessible instance of the backend is available for demonstration or use (ensure you trust its operator if using with private repositories):
+**Public Cloud Run URL:** [`https://multirepohub-backend-elmr3u3lwa-ez.a.run.app`](https://multirepohub-backend-elmr3u3lwa-ez.a.run.app)
+
+If using a deployed backend, update the Backend URL in the extension settings accordingly.
 
 ## Use Cases
 
@@ -201,12 +215,14 @@ This extension uses:
    - Extracts task identifiers from branch names using regex patterns
    - Groups PRs by task name across repositories
    - Calculates consolidated status and statistics for each task
+   - Uses the PAT from the extension for all GitLab API interactions.
 
 2. **Virtual Workspace Creation**:
-   - Creates a parent Git repository
-   - Adds each selected repository as a Git submodule
-   - Generates helper scripts for multi-repository operations
-   - Handles branch creation and checkout across all submodules
+   - Creates a parent Git repository structure locally on the backend server.
+   - Adds each selected repository as a Git submodule, using the PAT from the extension for private GitLab repositories.
+   - Generates helper scripts for multi-repository operations.
+   - Packages the resulting workspace into a ZIP file for download.
+   - Cleans the PAT from `.gitmodules` before zipping to avoid exposing it in the downloaded archive.
 
 3. **Content Script Injection**:
    - Detects GitLab merge request pages
