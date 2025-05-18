@@ -170,186 +170,89 @@ function createVirtualWorkspace() {
             return;
         }
         
-        // Normalize backend URL - remove any trailing slashes
         backendUrl = backendUrl.replace(/\/+$/, "");
         
-        // Function to reset create button
         function resetCreateButton() {
             createBtn.disabled = false;
             createBtn.textContent = originalBtnText;
             const spinner = document.getElementById("workspace-loading");
             if (spinner) spinner.remove();
+            resultDiv.style.display = "none"; // Hide result div on reset or new attempt
+            cloneCommandEl.textContent = "";
         }
         
-        // Remove the fetch for commit-submodules.sh and send the payload directly
         const payload = {
-            name: workspaceName,                  // Standard name field
-            workspace_name: workspaceName,        // Older API compatibility
-            repo_name: workspaceName,             // Explicit repository name
-            repository_name: workspaceName,       // Alternative naming field
-            project_name: workspaceName,          // GitLab specific
+            name: workspaceName,
+            workspace_name: workspaceName,
+            repo_name: workspaceName,
+            repository_name: workspaceName,
+            project_name: workspaceName,
             task_name: taskName,
             branch_name: branchName,
             repo_urls: selectedRepos,
-            use_custom_name: true,                // Flag to use custom name
-            use_workspace_name: true,             // Alternative flag
-            force_name_override: true             // Force override branch-based naming
+            use_custom_name: true,
+            use_workspace_name: true,
+            force_name_override: true
         };
         
         console.log("Creating workspace with payload:", payload);
-        
-        // Create workspace request
+        resultDiv.style.display = "none"; // Clear previous results
+        cloneCommandEl.textContent = "";
+
         fetch(`${backendUrl}/api/workspace/create`, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
+                "Content-Type": "application/json", // Ensure this is set for sending JSON payload
                 "x-gitlab-token": gitlabToken,
-                "x-requested-name": workspaceName         // Additional header for name
+                "x-requested-name": workspaceName 
             },
             body: JSON.stringify(payload)
         })
         .then(response => {
             if (!response.ok) {
-                // Try to get error details from response
+                // If response is not OK, it's likely an error JSON from FastAPI
                 return response.json().then(errData => {
                     console.error("Error details from API:", errData);
                     throw new Error(`Failed to create workspace: ${response.status} - ${errData.detail || JSON.stringify(errData)}`);
-                }).catch(err => {
-                    if (err.message.includes("Failed to create workspace")) {
-                        throw err;
-                    }
-                    throw new Error(`Failed to create workspace: ${response.status}`);
+                }).catch(parseErr => { 
+                    console.error("Failed to parse error JSON, or not a JSON error:", parseErr);
+                    throw new Error(`Failed to create workspace: ${response.status} - ${response.statusText || "Server error"}`);
                 });
             }
-            return response.json();
+            // If response.ok, it should be the zip file
+            const contentDisposition = response.headers.get('content-disposition');
+            let filename = "virtual_workspace.zip"; // Default filename
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+                if (filenameMatch && filenameMatch.length > 1) {
+                    filename = filenameMatch[1];
+                }
+            }
+            return response.blob().then(blob => ({ blob, filename }));
         })
-        .then(data => {
-            console.log("Workspace created, API response:", data);
+        .then(({ blob, filename }) => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
             
-            // Show result
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            console.log("Workspace ZIP downloaded successfully:", filename);
             resultDiv.style.display = "block";
+            cloneCommandEl.innerHTML = `✅ Workspace <strong style="font-family: monospace;">${filename}</strong> downloaded successfully! Check your downloads folder.`;
             
-            // Log all potential URL fields for debugging
-            console.log("URL fields in response:", {
-                clone_url: data.clone_url,
-                cloneUrl: data.cloneUrl,
-                url: data.url,
-                path: data.path,
-                local_path: data.local_path,
-                git_url: data.git_url,
-                ssh_url: data.ssh_url,
-                repository_url: data.repository_url
-            });
-            
-            let cloneUrl;
-            
-            // Check if we have a local file path (Windows or Unix style)
-            const isWindowsPath = /^[A-Z]:\\/.test(data.clone_url || data.cloneUrl || data.path || data.local_path || "");
-            const isUnixPath = /^\/(?!http)/.test(data.clone_url || data.cloneUrl || data.path || data.local_path || "");
-            
-            if (isWindowsPath || isUnixPath) {
-                console.log("Detected local file path");
-                
-                // If we have a local file path, use it directly
-                const localPaths = [
-                    data.local_path,
-                    data.path,
-                    data.clone_url,
-                    data.cloneUrl
-                ].filter(p => p && (p.includes(":\\") || p.startsWith("/"))); // Filter for valid file paths
-                
-                if (localPaths.length > 0) {
-                    // Check if the path contains the workspace name
-                    const pathWithWorkspaceName = localPaths.find(p => 
-                        p.includes(workspaceName) || 
-                        p.endsWith(workspaceName) || 
-                        p.endsWith(`${workspaceName}.git`)
-                    );
-                    
-                    // Prefer path with workspace name, otherwise use the first path
-                    cloneUrl = pathWithWorkspaceName || localPaths[0];
-                    
-                    console.log("Using local file path:", cloneUrl);
-                } else {
-                    // Construct a path based on standard temp directories
-                    console.log("No valid local path found, constructing a default");
-                    
-                    // Guess a reasonable local path
-                    if (navigator.platform.includes("Win")) {
-                        cloneUrl = `C:\\Users\\${navigator.userAgent.split("Windows NT ")[1]?.split(";")[0] || "username"}\\AppData\\Local\\Temp\\virtual_workspaces\\${workspaceName}`;
-                    } else {
-                        cloneUrl = `/tmp/virtual_workspaces/${workspaceName}`;
-                    }
-                }
-            } else {
-                // Not a local path, proceed with the normal URL handling
-                // Complete URLs provided by the API (prefer these)
-                const possibleUrls = [
-                    data.clone_url,
-                    data.cloneUrl,
-                    data.git_url,
-                    data.url,
-                    data.repository_url,
-                    data.web_url
-                ].filter(u => u); // Filter out undefined or empty values
-                
-                // First try to find a URL that contains the workspace name
-                const preferredUrl = possibleUrls.find(url => 
-                    url.includes(workspaceName) || url.includes(encodeURIComponent(workspaceName))
-                );
-                
-                // Use the preferred URL if found, otherwise use the first URL in the list
-                cloneUrl = preferredUrl || possibleUrls[0];
-                
-                // If we still don't have a URL, construct one using our helper
-                if (!cloneUrl) {
-                    if (selectedRepos.length > 0) {
-                        // Use the first selected repo URL as a base
-                        const baseUrl = selectedRepos[0].replace(/\/[^\/]+\.git$/, "");
-                        cloneUrl = ensureValidCloneUrl(null, baseUrl, workspaceName);
-                    } else {
-                        // Last resort: guess a URL
-                        cloneUrl = `https://gitlab.com/your-user/${workspaceName}.git`;
-                    }
-                }
-            }
-            
-            // Final validation and cleanup
-            if (cloneUrl) {
-                // Update clone command with the correct URL
-                updateCloneCommand(cloneUrl);
-                
-                // Record workspace in history
-                const workspace = {
-                    name: workspaceName,
-                    branch: branchName,
-                    task: taskName,
-                    repos: selectedRepos, // Ensure this is an array of repo URLs
-                    clone_url: cloneUrl,
-                    created_at: new Date().toISOString()
-                };
-                
-                // Debug: log what's being stored
-                console.log("Storing workspace with repos:", workspace.repos);
-                console.log("Storing clone URL:", cloneUrl);
-                
-                addWorkspaceToHistory(workspace);
-            } else {
-                document.getElementById("clone-command").textContent = "# Error: Could not determine clone URL";
-                document.getElementById("workspace-result").style.display = "block";
-            }
-            
-            // Reset button
             resetCreateButton();
+            createBtn.textContent = "Create Another Workspace";
         })
         .catch(error => {
-            console.error("Failed to create workspace:", error);
-            
-            // Show error message
+            console.error("Failed to create or download workspace:", error);
             resultDiv.style.display = "block";
-            document.getElementById("clone-command").textContent = `# Error: ${error.message}`;
-            
-            // Reset button
+            cloneCommandEl.innerHTML = `<span style="color: red;">Error: ${error.message}</span>`;
             resetCreateButton();
         });
     });
@@ -657,160 +560,6 @@ function addWorkspaceToHistory(workspace) {
     });
 }
 
-// Function to update clone command for a workspace result
-function updateCloneCommand(url) {
-    if (!url) {
-        document.getElementById("clone-command").textContent = "# Error: No clone URL available";
-        return;
-    }
-    
-    console.log("Original URL for clone command:", url);
-    
-    const cloneCommandEl = document.getElementById("clone-command");
-    if (!cloneCommandEl) {
-        console.error("Clone command element not found");
-        return;
-    }
-    
-    // Get workspace name and branch
-    const workspaceName = document.getElementById("workspace-name").value.trim();
-    const branchName = document.getElementById("workspace-branch-name").value.trim();
-    
-    // Determine if it's a local path or remote URL
-    const isLocalPath = url.includes(":\\") || url.startsWith("/");
-    
-    // Format the URL properly for git
-    let formattedUrl = url;
-    
-    if (isLocalPath) {
-        // For local paths, convert them to file:/// format for Git
-        formattedUrl = url.replace(/\\/g, "/");
-        if (formattedUrl.startsWith("/")) {
-            formattedUrl = "file://" + formattedUrl;
-        } else {
-            // Windows path needs three slashes
-            formattedUrl = "file:///" + formattedUrl;
-        }
-        console.log("Converted local path to Git URL:", formattedUrl);
-    }
-    
-    // For all URLs, use git clone format
-    const command = `git clone "${formattedUrl}" ${workspaceName}`;
-    console.log("Generated clone command:", command);
-    
-    // Set the command text - just show the clone command, not the notes
-    cloneCommandEl.textContent = command;
-    
-    // Style the clone command
-    cloneCommandEl.style.backgroundColor = "#272822";
-    cloneCommandEl.style.color = "#f8f8f2";
-    cloneCommandEl.style.padding = "10px";
-    cloneCommandEl.style.borderRadius = "4px";
-    cloneCommandEl.style.border = "1px solid #1e1f1c";
-    cloneCommandEl.style.fontFamily = "monospace";
-    cloneCommandEl.style.fontSize = "13px";
-    cloneCommandEl.style.width = "100%";
-    cloneCommandEl.style.boxSizing = "border-box";
-    cloneCommandEl.style.display = "block";
-    cloneCommandEl.style.overflow = "auto";
-    cloneCommandEl.style.whiteSpace = "pre";
-    
-    // Remove any existing git icon that might be overlapping
-    const existingIcons = cloneCommandEl.parentNode.querySelectorAll(".git-icon, .command-icon");
-    existingIcons.forEach(icon => icon.remove());
-    
-    // Ensure the result div is visible
-    document.getElementById("workspace-result").style.display = "block";
-    
-    // Add note about next steps in a separate element
-    let noteEl = document.getElementById("clone-command-note");
-    if (!noteEl) {
-        noteEl = document.createElement("div");
-        noteEl.id = "clone-command-note";
-        noteEl.style.marginTop = "15px";
-        noteEl.style.fontSize = "0.9em";
-        noteEl.style.color = "#555";
-        noteEl.style.backgroundColor = "#f5f7f9";
-        noteEl.style.padding = "10px";
-        noteEl.style.borderRadius = "4px";
-        noteEl.style.border = "1px solid #e0e5e9";
-        cloneCommandEl.parentNode.appendChild(noteEl);
-    }
-    
-    noteEl.innerHTML = `
-        <p style="margin-top: 0; font-weight: 600;">After cloning:</p>
-        <ol style="padding-left: 20px; margin-bottom: 0;">
-            <li>Initialize workspace: <code style="background: #eee; padding: 2px 4px; border-radius: 3px;">bash multi-repo init</code></li>
-        </ol>
-    `;
-    
-    // Setup copy button
-    setupCopyCloneButton();
-}
-
-// Setup the copy functionality for the clone command
-function setupCopyCloneButton() {
-    const copyBtn = document.getElementById("copy-clone-command");
-    const cloneCommandEl = document.getElementById("clone-command");
-    
-    if (!copyBtn || !cloneCommandEl) {
-        console.error("Copy button or clone command element not found");
-        return;
-    }
-    
-    // Style the copy button
-    copyBtn.style.position = "absolute";
-    copyBtn.style.right = "10px";
-    copyBtn.style.top = "8px";
-    copyBtn.style.padding = "4px 8px";
-    copyBtn.style.fontSize = "12px";
-    copyBtn.style.backgroundColor = "#3E3D32";
-    copyBtn.style.border = "1px solid #4E4D42";
-    copyBtn.style.color = "#f8f8f2";
-    copyBtn.style.borderRadius = "3px";
-    copyBtn.style.cursor = "pointer";
-    
-    // Make sure the container has position relative for absolute positioning of the button
-    const commandContainer = cloneCommandEl.parentNode;
-    if (commandContainer) {
-        commandContainer.style.position = "relative";
-    }
-    
-    // Remove existing listeners by cloning and replacing the button
-    const newCopyBtn = copyBtn.cloneNode(true);
-    // Transfer all styles
-    newCopyBtn.style.cssText = copyBtn.style.cssText;
-    copyBtn.parentNode.replaceChild(newCopyBtn, copyBtn);
-    
-    // Add new click listener
-    newCopyBtn.addEventListener("click", function() {
-        const commandText = cloneCommandEl.textContent;
-        if (!commandText) {
-            console.error("No command text to copy");
-            return;
-        }
-        
-        // Only copy the clone command, not any notes
-        copyToClipboard(commandText, function(success) {
-            if (success) {
-                newCopyBtn.textContent = "Copied!";
-                newCopyBtn.style.backgroundColor = "#27AE60";
-                setTimeout(() => { 
-                    newCopyBtn.textContent = "Copy"; 
-                    newCopyBtn.style.backgroundColor = "#3E3D32";
-                }, 2000);
-            } else {
-                newCopyBtn.textContent = "Failed";
-                newCopyBtn.style.backgroundColor = "#E74C3C";
-                setTimeout(() => { 
-                    newCopyBtn.textContent = "Copy"; 
-                    newCopyBtn.style.backgroundColor = "#3E3D32";
-                }, 2000);
-            }
-        });
-    });
-}
-
 // Function to remove workspace from history
 function removeWorkspaceFromHistory(workspaceName) {
     if (!workspaceName) return;
@@ -837,6 +586,23 @@ window.ensureValidCloneUrl = ensureValidCloneUrl;
 window.createVirtualWorkspace = createVirtualWorkspace;
 window.loadWorkspaceHistory = loadWorkspaceHistory;
 window.addWorkspaceToHistory = addWorkspaceToHistory;
-window.updateCloneCommand = updateCloneCommand;
-window.setupCopyCloneButton = setupCopyCloneButton;
-window.removeWorkspaceFromHistory = removeWorkspaceFromHistory; 
+window.removeWorkspaceFromHistory = removeWorkspaceFromHistory;
+
+// Ensure the setup for branch name to task name extraction is still called if needed
+document.addEventListener('DOMContentLoaded', function() {
+    // ... (your existing DOMContentLoaded listeners) ...
+    const branchInput = document.getElementById("workspace-branch-name");
+    if (branchInput) {
+        branchInput.addEventListener("input", extractTaskFromBranch);
+    }
+    
+    const createBtn = document.getElementById("create-workspace-btn");
+    if (createBtn) {
+        createBtn.addEventListener("click", createVirtualWorkspace);
+    }
+
+    // loadWorkspaceHistory(); // If you still want this feature
+    // Consider removing or repurposing the copy clone command button logic
+    // const copyBtn = document.getElementById("copy-clone-command-btn");
+    // if (copyBtn) copyBtn.style.display = "none"; 
+}); 
