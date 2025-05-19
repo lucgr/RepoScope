@@ -1,0 +1,63 @@
+#!/bin/bash
+
+# mrh - Multi-Repo Helper wrapper script
+# Wrapper around multi-repo.sh to provide easier command access
+
+# Add debugging mode support
+if [ "$1" = "--debug" ]; then
+    DEBUG=true
+    shift
+else
+    DEBUG=false
+fi
+
+# Get the directory of this script
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Display debug info if requested
+if [ "$DEBUG" = true ]; then
+    echo "Running in debug mode"
+    echo "Script directory: $SCRIPT_DIR"
+    echo "Arguments: $@"
+fi
+
+# Locate the multi-repo.sh script
+MULTI_REPO_SCRIPT="$SCRIPT_DIR/multi-repo.sh"
+
+# Check if the script exists
+if [ ! -f "$MULTI_REPO_SCRIPT" ]; then
+    if [ "$DEBUG" = true ]; then
+        echo "multi-repo.sh not found in $SCRIPT_DIR, trying in current directory"
+    fi
+    
+    # Try alternative location in current directory
+    MULTI_REPO_SCRIPT="./multi-repo.sh"
+    
+    if [ ! -f "$MULTI_REPO_SCRIPT" ]; then
+        echo "Error: Could not find multi-repo.sh script"
+        echo "Please run this command from the workspace root where multi-repo.sh is located"
+        exit 1
+    fi
+fi
+
+# Make sure the script is executable
+if [ ! -x "$MULTI_REPO_SCRIPT" ]; then
+    if [ "$DEBUG" = true ]; then
+        echo "Making multi-repo.sh executable"
+    fi
+    chmod +x "$MULTI_REPO_SCRIPT"
+fi
+
+# Pass all arguments to the multi-repo.sh script
+if [ "$DEBUG" = true ]; then
+    echo "Executing: $MULTI_REPO_SCRIPT $@"
+fi
+
+"$MULTI_REPO_SCRIPT" "$@"
+EXIT_CODE=$?
+
+if [ "$DEBUG" = true ]; then
+    echo "multi-repo.sh exited with code: $EXIT_CODE"
+fi
+
+exit $EXIT_CODE 

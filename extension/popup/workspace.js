@@ -65,6 +65,11 @@ function createFullCloneUrl(baseUrl, workspaceName) {
 
 // Helper function to ensure we have a valid clone URL
 function ensureValidCloneUrl(url, baseUrl, name) {
+    if (!url) return null;
+    
+    // Strip any trailing slashes
+    url = url.replace(/\/+$/, "");
+    
     // If we have a full URL, ensure it contains the workspace name
     if (url && url.includes("://")) {
         return ensureWorkspaceNameInUrl(url, name);
@@ -82,6 +87,24 @@ function ensureValidCloneUrl(url, baseUrl, name) {
     
     // If all else fails, return the original URL
     return url;
+}
+
+// Function to sanitize repository URLs
+function sanitizeRepoUrl(url) {
+    if (!url) return url;
+    
+    // Trim whitespace
+    let sanitized = url.trim();
+    
+    // Remove trailing slashes
+    sanitized = sanitized.replace(/\/+$/, "");
+    
+    // Ensure .git extension
+    if (!sanitized.endsWith('.git')) {
+        sanitized += '.git';
+    }
+    
+    return sanitized;
 }
 
 // Function to create a virtual workspace
@@ -122,7 +145,11 @@ function createVirtualWorkspace() {
     const selectedRepos = [];
     const checkboxes = document.querySelectorAll("#workspace-repo-selection input[type=\"checkbox\"]:checked");
     checkboxes.forEach(function(checkbox) {
-        selectedRepos.push(checkbox.value);
+        // Sanitize each URL to ensure consistency
+        const sanitizedUrl = sanitizeRepoUrl(checkbox.value);
+        if (sanitizedUrl) {
+            selectedRepos.push(sanitizedUrl);
+        }
     });
     
     if (selectedRepos.length === 0) {
@@ -198,7 +225,14 @@ function createVirtualWorkspace() {
         console.log("Creating workspace with payload:", payload);
         resultDiv.style.display = "none"; // Clear previous results
         cloneCommandEl.textContent = "";
-
+        
+        // Use a timeout to allow for longer API calls
+        const fetchTimeout = 60000; // 60 seconds
+        
+        // Create an AbortController to handle timeouts
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), fetchTimeout);
+        
         fetch(`${backendUrl}/api/workspace/create`, {
             method: "POST",
             headers: {
@@ -206,9 +240,12 @@ function createVirtualWorkspace() {
                 "x-gitlab-token": gitlabToken,
                 "x-requested-name": workspaceName 
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
+            signal: controller.signal
         })
         .then(response => {
+            clearTimeout(timeoutId);
+            
             if (!response.ok) {
                 // If response is not OK, it's likely an error JSON from FastAPI
                 return response.json().then(errData => {
@@ -250,9 +287,18 @@ function createVirtualWorkspace() {
             createBtn.textContent = "Create Another Workspace";
         })
         .catch(error => {
+            clearTimeout(timeoutId);
+            
             console.error("Failed to create or download workspace:", error);
             resultDiv.style.display = "block";
-            cloneCommandEl.innerHTML = `<span style="color: red;">Error: ${error.message}</span>`;
+            
+            // Check if it's an AbortError (timeout)
+            if (error.name === 'AbortError') {
+                cloneCommandEl.innerHTML = `<span style="color: red;">Error: The request timed out after ${fetchTimeout/1000} seconds. The GitLab server might be experiencing issues or the repository might be too large.</span>`;
+            } else {
+                cloneCommandEl.innerHTML = `<span style="color: red;">Error: ${error.message}</span>`;
+            }
+            
             resetCreateButton();
         });
     });

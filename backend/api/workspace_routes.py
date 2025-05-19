@@ -6,6 +6,8 @@ import logging
 import shutil
 import os
 import tempfile
+import traceback
+from typing import List
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -32,6 +34,46 @@ def cleanup_files(workspace_path: str, zip_path: str):
 def get_workspace_service():
     return WorkspaceService()
 
+# Helper to validate and sanitize repo URLs
+def validate_repo_urls(repo_urls: List[str]) -> List[str]:
+    """Validate and sanitize repository URLs."""
+    if not repo_urls:
+        raise HTTPException(
+            status_code=400, 
+            detail="No repository URLs provided in the request."
+        )
+    
+    sanitized_urls = []
+    for url in repo_urls:
+        if not url:
+            continue
+        
+        # Basic URL sanitization
+        sanitized_url = url.strip()
+        
+        # Validate URL has the required structure
+        if not any(provider in sanitized_url for provider in ['github.com', 'gitlab.com', 'bitbucket.org']):
+            logger.warning(f"URL does not contain a recognized Git provider: {sanitized_url}")
+            # We'll still include it, but log a warning
+        
+        # Remove any trailing slashes
+        while sanitized_url.endswith('/'):
+            sanitized_url = sanitized_url[:-1]
+            
+        # Ensure .git extension if missing
+        if not sanitized_url.endswith('.git'):
+            sanitized_url += '.git'
+            
+        sanitized_urls.append(sanitized_url)
+    
+    if not sanitized_urls:
+        raise HTTPException(
+            status_code=400, 
+            detail="No valid repository URLs were provided after sanitization."
+        )
+    
+    return sanitized_urls
+
 @router.post("/create")
 async def create_virtual_workspace(
     background_tasks: BackgroundTasks,
@@ -45,17 +87,26 @@ async def create_virtual_workspace(
     try:
         branch_name = request.get('branch_name')
         task_name = request.get('task_name')
-        repo_urls = request.get('repo_urls', [])
+        repo_urls_raw = request.get('repo_urls', [])
         workspace_name = request.get('workspace_name')
         script_content = request.get('script_content')
+        
+        # Log the incoming request for debugging
+        logger.info(f"Received workspace creation request: branch={branch_name}, task={task_name}, repos_count={len(repo_urls_raw)}")
         
         if not x_gitlab_token:
             # Still return JSON for errors
             raise HTTPException(status_code=401, detail="X-Gitlab-Token header is required.")
 
-        if not branch_name or not task_name or not repo_urls:
-            raise HTTPException(status_code=400, detail="Missing required fields")
+        if not branch_name:
+            raise HTTPException(status_code=400, detail="Missing branch_name field")
             
+        if not task_name:
+            raise HTTPException(status_code=400, detail="Missing task_name field")
+            
+        # Validate and sanitize repository URLs
+        repo_urls = validate_repo_urls(repo_urls_raw)
+        
         logger.info(f"Creating virtual workspace for branch {branch_name} with {len(repo_urls)} repositories")
         
         service_response = workspace_service.create_virtual_workspace(
@@ -117,7 +168,8 @@ async def create_virtual_workspace(
     except HTTPException: # Re-raise HTTPExceptions directly to preserve status code and detail
         raise
     except Exception as e:
-        logger.error(f"Unhandled error in create_virtual_workspace endpoint: {str(e)}", exc_info=True)
+        error_traceback = traceback.format_exc()
+        logger.error(f"Unhandled error in create_virtual_workspace endpoint: {str(e)}\n{error_traceback}")
         # If an error occurs before FileResponse, still attempt cleanup if paths were set
         if workspace_dir_path_for_cleanup or zip_file_path_for_cleanup:
              cleanup_files(workspace_dir_path_for_cleanup, zip_file_path_for_cleanup)

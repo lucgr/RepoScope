@@ -10,14 +10,14 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo "multi-repo.sh version: 2024-05-15"
+echo "mrh (multi-repo helper) version: 2025-05-15"
 
 # Display help information
 function show_help {
     echo -e "${BLUE}=== Multi-Repo Operations Tool ===${NC}"
     echo -e "A wrapper for managing operations across multiple repositories in a virtual workspace"
     echo ""
-    echo -e "Usage: ${YELLOW}multi-repo <command> [arguments]${NC}"
+    echo -e "Usage: ${YELLOW}mrh <command> [arguments]${NC}"
     echo ""
     echo -e "Available commands:"
     echo -e "  ${GREEN}init${NC}                    Initialize all submodules in the workspace"
@@ -30,7 +30,7 @@ function show_help {
     echo -e "  ${GREEN}pr${NC}        \"title\"       Create pull requests for all repositories with changes"
     echo -e "  ${GREEN}help${NC}                    Show this help message"
     echo ""
-    echo -e "Example: ${YELLOW}multi-repo commit \"Add new feature\"${NC}"
+    echo -e "Example: ${YELLOW}mrh commit \"Add new feature\"${NC}"
 }
 
 # Check if we're in a virtual workspace
@@ -105,7 +105,7 @@ case "$COMMAND" in
         # Check if commit message is provided
         if [ -z "$1" ]; then
             echo -e "${RED}Error: No commit message provided${NC}"
-            echo -e "Usage: multi-repo commit \"Your commit message\""
+            echo -e "Usage: mrh commit \"Your commit message\""
             exit 1
         fi
         
@@ -393,7 +393,7 @@ case "$COMMAND" in
         # Check if branch name is provided
         if [ -z "$1" ]; then
             echo -e "${RED}Error: No branch name provided${NC}"
-            echo -e "Usage: multi-repo checkout <branch-name>"
+            echo -e "Usage: mrh checkout <branch-name>"
             exit 1
         fi
         
@@ -442,7 +442,7 @@ case "$COMMAND" in
         # Check if branch name is provided
         if [ -z "$1" ]; then
             echo -e "${RED}Error: No branch name provided${NC}"
-            echo -e "Usage: multi-repo branch <branch-name>"
+            echo -e "Usage: mrh branch <branch-name>"
             exit 1
         fi
         
@@ -491,7 +491,7 @@ case "$COMMAND" in
         # Check if PR title is provided
         if [ -z "$1" ]; then
             echo -e "${RED}Error: No PR title provided${NC}"
-            echo -e "Usage: multi-repo pr \"Your PR title\""
+            echo -e "Usage: mrh pr \"Your PR title\""
             exit 1
         fi
         

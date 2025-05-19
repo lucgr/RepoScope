@@ -23,6 +23,7 @@ class WorkspaceService:
     def _run_git_command(self, cmd: List[str], cwd: str = None) -> Tuple[bool, str]:
         """Run a git command and return the result."""
         try:
+            logger.info(f"Running Git command: {' '.join(cmd)}")
             result = subprocess.run(
                 cmd, 
                 cwd=cwd,
@@ -35,6 +36,15 @@ class WorkspaceService:
             error_msg = f"Git command failed: {e.stderr.strip() if e.stderr else e.stdout.strip()}" 
             logger.error(error_msg)
             return False, error_msg
+    
+    def _normalize_repo_url(self, repo_url: str) -> str:
+        """Normalize repository URL to ensure consistent format."""
+        # Remove trailing slashes that can cause issues with Git operations
+        normalized_url = repo_url.rstrip('/')
+        # Ensure .git extension is present for consistency
+        if not normalized_url.endswith('.git'):
+            normalized_url += '.git'
+        return normalized_url
     
     def create_virtual_workspace(self, branch_name: str, task_name: str, repo_urls: List[str], 
                                  workspace_name: str = None, script_content: str = None, 
@@ -76,43 +86,84 @@ class WorkspaceService:
             return {"status": "error", "message": f"Failed to create branch: {output}"}
         
         for repo_url in repo_urls:
-            repo_name_from_url = repo_url.split("/")[-1].replace(".git", "")
-            authenticated_repo_url = repo_url
-            if gitlab_token and "gitlab.com" in repo_url:
-                parsed_url = urlparse(repo_url)
-                netloc_with_token = f"oauth2:{gitlab_token}@{parsed_url.hostname}"
-                if parsed_url.port:
-                    netloc_with_token += f":{parsed_url.port}"
-                authenticated_repo_url = urlunparse(
-                    (parsed_url.scheme, netloc_with_token, parsed_url.path, 
-                     parsed_url.params, parsed_url.query, parsed_url.fragment)
-                )
-                logger.info(f"Using authenticated URL for submodule {repo_name_from_url}")
+            # Normalize the repo URL
+            normalized_repo_url = self._normalize_repo_url(repo_url)
+            repo_name_from_url = normalized_repo_url.split("/")[-1].replace(".git", "")
+            authenticated_repo_url = normalized_repo_url
+            
+            if gitlab_token and "gitlab.com" in normalized_repo_url:
+                try:
+                    parsed_url = urlparse(normalized_repo_url)
+                    netloc_with_token = f"oauth2:{gitlab_token}@{parsed_url.hostname}"
+                    if parsed_url.port:
+                        netloc_with_token += f":{parsed_url.port}"
+                    authenticated_repo_url = urlunparse(
+                        (parsed_url.scheme, netloc_with_token, parsed_url.path, 
+                        parsed_url.params, parsed_url.query, parsed_url.fragment)
+                    )
+                    
+                    # Ensure no trailing slash in the authenticated URL
+                    authenticated_repo_url = authenticated_repo_url.rstrip('/')
+                    if authenticated_repo_url.endswith('.git'):
+                        # We want to keep the .git extension
+                        authenticated_repo_url = authenticated_repo_url[:-4].rstrip('/') + '.git'
+                    
+                    logger.info(f"Using authenticated URL for submodule {repo_name_from_url}")
+                except Exception as e:
+                    logger.error(f"Error creating authenticated URL: {str(e)}")
+                    return {"status": "error", "message": f"Error creating authenticated URL: {str(e)}"}
             else:
-                logger.info(f"Adding submodule {repo_name_from_url} from {repo_url} (shallow clone)... No token used or not a GitLab URL.")
+                logger.info(f"Adding submodule {repo_name_from_url} from {normalized_repo_url} (shallow clone)... No token used or not a GitLab URL.")
 
-            success, output = self._run_git_command(
-                ["git", "submodule", "add", "--depth", "1", authenticated_repo_url, repo_name_from_url], 
-                cwd=workspace_dir
-            )
+            # Try different approaches to add the submodule in case one fails
+            methods = [
+                # Standard submodule add with depth 1
+                ["git", "submodule", "add", "--depth", "1", authenticated_repo_url, repo_name_from_url],
+                # Try without --depth if it fails
+                ["git", "submodule", "add", authenticated_repo_url, repo_name_from_url],
+                # Try with manual clone as a fallback
+                ["git", "clone", authenticated_repo_url, repo_name_from_url]
+            ]
+            
+            success = False
+            for method_index, method in enumerate(methods):
+                logger.info(f"Attempting to add repo using method {method_index+1}: {' '.join(method)}")
+                success, output = self._run_git_command(method, cwd=workspace_dir)
+                if success:
+                    logger.info(f"Successfully added repository {repo_name_from_url} using method {method_index+1}")
+                    
+                    # If this was a manual clone, we need to add it as a submodule
+                    if method[0] == "git" and method[1] == "clone":
+                        # Add the manually cloned repo as a submodule
+                        success, output = self._run_git_command(
+                            ["git", "submodule", "add", "./" + repo_name_from_url], 
+                            cwd=workspace_dir
+                        )
+                        if not success:
+                            logger.warning(f"Manually cloned {repo_name_from_url} but couldn't add as submodule: {output}")
+                            # We'll consider this a partial success since the repo was cloned
+                    break
+                else:
+                    logger.warning(f"Method {method_index+1} failed: {output}")
+            
             if not success:
-                error_message = f"Failed to add submodule {repo_url}: {output}"
+                error_message = f"Failed to add repository {normalized_repo_url} after trying multiple methods: {output}"
                 logger.error(error_message)
                 return {"status": "error", "message": error_message}
-            logger.info(f"Successfully added submodule {repo_name_from_url}")
         
         readme_content = f"# Virtual Workspace for {task_name}\n\nBranch: {branch_name}\n\n## Included Repositories\n\n"
         for repo_url in repo_urls:
-            repo_name_from_url = repo_url.split("/")[-1].replace(".git", "")
-            readme_content += f"- [{repo_name_from_url}]({repo_url})\n"
+            normalized_repo_url = self._normalize_repo_url(repo_url)
+            repo_name_from_url = normalized_repo_url.split("/")[-1].replace(".git", "")
+            readme_content += f"- [{repo_name_from_url}]({normalized_repo_url})\n"
         readme_content += "\n## Usage\n\nThis workspace includes helper scripts for working with multiple repositories:\n\n"
-        readme_content += "- `./multi-repo.sh init` - Initialize the workspace (submodules are added and branches created)\n"
-        readme_content += "- `./multi-repo.sh commit \"Your commit message\"` - Commit changes across all repositories\n"
-        readme_content += "- `./multi-repo.sh push` - Push all committed changes\n"
-        readme_content += "- `./multi-repo.sh pull` - Pull changes for all repositories\n"
-        readme_content += "- `./multi-repo.sh status` - Show status of all repositories\n"
-        readme_content += "- `./multi-repo.sh branch <branch-name>` - Create a new branch in all repositories\n"
-        readme_content += "- `./multi-repo.sh checkout <branch-name>` - Checkout the specified branch in all repositories\n"
+        readme_content += "- `./mrh init` - Initialize the workspace (submodules are added and branches created)\n"
+        readme_content += "- `./mrh commit \"Your commit message\"` - Commit changes across all repositories\n"
+        readme_content += "- `./mrh push` - Push all committed changes\n"
+        readme_content += "- `./mrh pull` - Pull changes for all repositories\n"
+        readme_content += "- `./mrh status` - Show status of all repositories\n"
+        readme_content += "- `./mrh branch <branch-name>` - Create a new branch in all repositories\n"
+        readme_content += "- `./mrh checkout <branch-name>` - Checkout the specified branch in all repositories\n"
         
         readme_path = os.path.join(workspace_dir, "README.md")
         with open(readme_path, "w") as f:
@@ -120,6 +171,9 @@ class WorkspaceService:
         
         self._create_script_from_template(workspace_dir, "commit-submodules.sh", script_content)
         self._create_script_from_template(workspace_dir, "multi-repo.sh")
+        
+        # Also copy the mrh script
+        self._create_script_from_template(workspace_dir, "mrh")
             
         success, output = self._run_git_command(["git", "add", "."], cwd=workspace_dir)
         if not success:
