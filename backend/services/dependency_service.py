@@ -3,8 +3,7 @@ import tempfile
 import logging
 import subprocess
 import shutil
-from typing import List, Dict, Any, Set, Tuple
-from collections import defaultdict
+from typing import List, Dict, Any, Tuple
 import re
 from urllib.parse import urlparse, urlunparse
 import uuid
@@ -317,7 +316,7 @@ class DependencyService:
                                     try:
                                         # Execute git gc to clean up and release handles
                                         self._run_command(["git", "gc"], cwd=temp_dir)
-                                    except:
+                                    except Exception:
                                         # Ignore errors from git gc
                                         pass
                                     time.sleep(0.5)  # Small delay to let OS release handles
@@ -345,7 +344,7 @@ class DependencyService:
                     file_path = os.path.join(root, name)
                     os.chmod(file_path, 0o777)  # Try to ensure we have permissions
                     os.remove(file_path)
-                except:
+                except Exception:
                     pass  # Ignore errors
             
             # Try to remove directories
@@ -354,13 +353,13 @@ class DependencyService:
                     dir_path = os.path.join(root, name)
                     os.chmod(dir_path, 0o777)  # Try to ensure we have permissions
                     os.rmdir(dir_path)
-                except:
+                except Exception:
                     pass  # Ignore errors
         
         # Finally try to remove the main directory
         try:
             os.rmdir(directory)
-        except:
+        except Exception:
             pass  # Ignore errors
 
     def _find_mismatches(self, repo_deps: List[Tuple[str, Dict[str, str]]]) -> Dict[str, Dict[str, List[str]]]:

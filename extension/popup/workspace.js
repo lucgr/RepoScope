@@ -220,7 +220,7 @@ function createVirtualWorkspace() {
                 });
             }
             // If response.ok, it should be the zip file
-            const contentDisposition = response.headers.get('content-disposition');
+            const contentDisposition = response.headers.get("content-disposition");
             let filename = "virtual_workspace.zip"; // Default filename
             if (contentDisposition) {
                 const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
@@ -232,8 +232,8 @@ function createVirtualWorkspace() {
         })
         .then(({ blob, filename }) => {
             const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none';
+            const a = document.createElement("a");
+            a.style.display = "none";
             a.href = url;
             a.download = filename;
             document.body.appendChild(a);
@@ -589,7 +589,7 @@ window.addWorkspaceToHistory = addWorkspaceToHistory;
 window.removeWorkspaceFromHistory = removeWorkspaceFromHistory;
 
 // Ensure the setup for branch name to task name extraction is still called if needed
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener("DOMContentLoaded", function() {
     // ... (your existing DOMContentLoaded listeners) ...
     const branchInput = document.getElementById("workspace-branch-name");
     if (branchInput) {

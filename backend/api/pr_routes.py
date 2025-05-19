@@ -4,7 +4,6 @@ from pydantic import BaseModel
 from ..models.pr import PR, UnifiedPR
 from ..services.pr_service import PRService
 from ..config import get_gitlab_client
-import gitlab
 import logging
 
 # Configure logger

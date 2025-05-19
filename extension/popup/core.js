@@ -129,9 +129,9 @@ async function fetchAllGitLabRepos(gitlabToken) {
     let more = true;
     while (more) {
         const resp = await fetch(`https://gitlab.com/api/v4/projects?membership=true&simple=true&per_page=${perPage}&page=${page}`, {
-            headers: { 'Authorization': `Bearer ${gitlabToken}` }
+            headers: { "Authorization": `Bearer ${gitlabToken}` }
         });
-        if (!resp.ok) throw new Error('Failed to fetch repositories from GitLab');
+        if (!resp.ok) throw new Error("Failed to fetch repositories from GitLab");
         const data = await resp.json();
         repos = repos.concat(data);
         more = data.length === perPage;
@@ -347,8 +347,8 @@ function addRepository() {
 
 // After repositories are loaded from storage or updated, dispatch a custom event
 function dispatchReposLoadedEvent() {
-    console.log('Dispatching reposLoaded event');
-    const event = new CustomEvent('reposLoaded');
+    console.log("Dispatching reposLoaded event");
+    const event = new CustomEvent("reposLoaded");
     document.dispatchEvent(event);
 }
 

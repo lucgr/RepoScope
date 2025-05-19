@@ -13,11 +13,11 @@ function filterRepos(searchTerm) {
 }
 
 async function userHasAccessToRepo(owner, repo, token) {
-    const urlEncodedPath = encodeURIComponent(owner + '/' + repo);
+    const urlEncodedPath = encodeURIComponent(owner + "/" + repo);
     const apiUrl = `https://gitlab.com/api/v4/projects/${urlEncodedPath}`;
     try {
         const resp = await fetch(apiUrl, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: { "Authorization": `Bearer ${token}` }
         });
         return resp.ok;
     } catch (e) {
@@ -241,20 +241,20 @@ window.getRepositoryUrls = getRepositoryUrls;
 
 function extractRepoOwnerAndName(url) {
     // Remove protocol, trailing slash, .git, and extract owner and repo name
-    let clean = url.trim().replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/\.git$/, '');
-    const parts = clean.split('/');
+    let clean = url.trim().replace(/^https?:\/\//, "").replace(/\/$/, "").replace(/\.git$/, "");
+    const parts = clean.split("/");
     if (parts.length < 3) return null; // e.g. gitlab.com/owner/repo
     const owner = parts[1].toLowerCase();
     const repo = parts[2].toLowerCase();
-    return owner + '/' + repo;
+    return owner + "/" + repo;
 }
 
 // Inject Material Icons font if not already present
 (function() {
-    if (!document.querySelector('link[href*="fonts.googleapis.com/icon?family=Material+Icons"]')) {
-        const link = document.createElement('link');
-        link.href = 'https://fonts.googleapis.com/icon?family=Material+Icons';
-        link.rel = 'stylesheet';
+    if (!document.querySelector("link[href*=\"fonts.googleapis.com/icon?family=Material+Icons\"]")) {
+        const link = document.createElement("link");
+        link.href = "https://fonts.googleapis.com/icon?family=Material+Icons";
+        link.rel = "stylesheet";
         document.head.appendChild(link);
     }
 })(); 
