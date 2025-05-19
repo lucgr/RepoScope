@@ -12,6 +12,7 @@ MultiRepoHub solves the challenge of managing code changes across multiple repos
 - **Bulk Approval**: Approve multiple related PRs with a single click
 - **Pipeline Monitoring**: Track CI/CD pipeline status for all related PRs
 - **Virtual Workspaces**: Create unified working environments that combine multiple repositories
+- **Cross-repo Dependency Checker**: Identify mismatched dependency versions across repositories
 - **GitLab Integration**: Seamless integration with GitLab's merge request pages
 - **Cross-Repository Commit & PR Creation**: Streamlined creation of consistent changes across multiple repositories
 - **Support for Both GitLab and GitHub**: Flexible integration with major Git platforms
@@ -25,6 +26,7 @@ MultiRepoHub addresses several key challenges in modern software development:
 3. **Inconsistent Branch Management**: Ensures consistent branch naming and management across repositories
 4. **Multi-Repository Changes**: Streamlines the process of making coordinated changes across multiple repositories
 5. **CI/CD Visibility**: Provides a unified view of pipeline status across related PRs
+6. **Dependency Inconsistencies**: Detects version mismatches between common dependencies across repositories
 
 ## Detailed Usage Guide
 
@@ -108,6 +110,36 @@ MultiRepoHub addresses several key challenges in modern software development:
    - Previously created workspaces are listed in the Workspace History section.
    - You can re-download the ZIP for a previously defined workspace configuration by clicking its entry (note: this re-creates and re-zips the workspace on the backend).
 
+### Using the Cross-repo Dependency Checker
+
+1. **Accessing the Dependency Checker**:
+   - Click the extension icon to open the popup
+   - Navigate to the "Cross-repo Dependencies" tab
+   - Select the repositories you want to compare
+
+2. **Checking Dependencies**:
+   - By default, the checker will compare dependency files from the main branches
+   - Enable the "Show branch selection" option to specify different branches for each repository
+   - Click "Check Dependencies" to analyze and compare dependency versions
+
+3. **Understanding the Results**:
+   - The tool displays only the dependencies with version mismatches
+   - For Python projects, it checks requirements.txt and setup.py files
+   - For Go projects, it analyzes go.mod and go.sum files
+   - Results are organized by language (Python and Go)
+   - Each mismatch shows which repositories use which versions
+
+4. **Branch-Specific Comparisons**:
+   - Specify different branches to compare feature branches against main
+   - Compare dependencies across different feature branches
+   - Check dependencies between repositories at specific versions or tags
+
+5. **Use Cases**:
+   - Detect inconsistent dependency versions before merging PRs
+   - Verify that critical updates have been applied across all repositories
+   - Identify outdated dependencies that need synchronization
+   - Check compatibility between services during integration
+
 ### UI Elements and What They Display
 
 #### Settings Tab
@@ -136,6 +168,15 @@ MultiRepoHub addresses several key challenges in modern software development:
 - **Approval Badges**: Visual indicators of approval status for each PR
 - **Pipeline Status**: Current CI/CD status for each related PR
 - **Bulk Actions**: Button to approve all related PRs simultaneously
+
+#### Cross-repo Dependencies Tab
+- **Repository Selection**: Checkboxes for selecting repositories to compare
+- **Branch Selection**: Optional text fields to specify which branch to check for each repository
+- **Results Display**: 
+  - Python Dependencies: Mismatches in requirements.txt and setup.py files
+  - Go Dependencies: Mismatches in go.mod and go.sum files
+  - Version Information: Which versions are used by which repositories
+  - Warning Messages: Any issues encountered when analyzing repositories
 
 ## Backend Setup
 
@@ -182,6 +223,11 @@ If using a deployed backend, update the Backend URL in the extension settings ac
    - Ensure all changes are merged before deployment
    - Monitor pipeline status across all affected repositories
 
+4. **Dependency Management**:
+   - Ensure consistent dependency versions across multiple services
+   - Identify repositories that need updates when dependencies change
+   - Check compatibility between different components' dependencies
+
 ### DevOps Team Use Cases
 
 1. **CI/CD Pipeline Monitoring**:
@@ -193,6 +239,11 @@ If using a deployed backend, update the Backend URL in the extension settings ac
    - Verify all related PRs are approved and merged
    - Ensure all pipelines are passing before deployment
    - Coordinate synchronized releases of interdependent components
+
+3. **Security Compliance**:
+   - Verify all repositories use approved versions of dependencies
+   - Identify repositories with outdated or vulnerable dependencies
+   - Streamline coordinated dependency updates across services
 
 ### Product Team Use Cases
 
@@ -208,6 +259,7 @@ This extension uses:
 - FastAPI and Python for the backend
 - GitLab API for fetching and managing PRs
 - Git submodules for virtual workspace management
+- Regex parsing for dependency file analysis
 
 ## Behind the Scenes
 
@@ -230,6 +282,13 @@ This extension uses:
    - Fetches related PRs from the backend
    - Injects the unified view into the GitLab UI
    - Periodically refreshes approval and pipeline status
+
+4. **Dependency Checking Logic**:
+   - Clones selected repositories (with specific branches if requested)
+   - Extracts dependency information from common dependency files
+   - Compares versions across repositories to identify mismatches
+   - Handles both Python (requirements.txt, setup.py) and Go (go.mod, go.sum) dependencies
+   - Presents only the mismatched dependencies to avoid information overload
 
 ## License
 

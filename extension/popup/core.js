@@ -215,6 +215,9 @@ function initializePopup() {
         
         // Load workspace history
         loadWorkspaceHistory();
+        
+        // Notify that repositories have been loaded
+        dispatchReposLoadedEvent();
     });
 }
 
@@ -270,6 +273,9 @@ function saveSettings() {
             loadRepositoryList(repoUrls.join("\n"), searchValue, true);
             updateWorkspaceRepoSelection(repoUrls.join("\n"), searchValue, true);
             loadUnifiedPRs();
+            
+            // Notify that repositories have been loaded
+            dispatchReposLoadedEvent();
         });
     })
     .catch(error => {
@@ -337,4 +343,13 @@ function addRepository() {
         }
         // ... rest of add logic ...
     });
-} 
+}
+
+// After repositories are loaded from storage or updated, dispatch a custom event
+function dispatchReposLoadedEvent() {
+    console.log('Dispatching reposLoaded event');
+    const event = new CustomEvent('reposLoaded');
+    document.dispatchEvent(event);
+}
+
+// Find where repositories are loaded from storage or saved to storage and add the event dispatch there 

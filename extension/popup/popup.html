@@ -14,6 +14,7 @@
             <button class="tab-btn active" data-tab="settings-section">Settings</button>
             <button class="tab-btn" data-tab="unified-prs-section">Unified PRs</button>
             <button class="tab-btn" data-tab="virtual-workspace-section">Virtual Workspace</button>
+            <button class="tab-btn" data-tab="dependency-check-section">Cross-repo Dependencies</button>
         </div>
         
         <div class="settings-section tab-section active" id="settings-section">
@@ -114,7 +115,50 @@
                 <!-- History will be loaded dynamically -->
             </div>
         </div>
+        
+        <div class="dependency-check-section tab-section" id="dependency-check-section">
+            <h2>Cross-repo Dependencies</h2>
+            <p class="help-text">Check for dependency version mismatches across selected repositories</p>
+            
+            <div class="form-group">
+                <label>Select Repositories:</label>
+                <div id="dependency-repo-selection">
+                    <!-- Repository checkboxes will be populated here -->
+                </div>
+                <div class="empty-state" id="empty-dependency-repos">
+                    No repositories available. Add repositories in the Settings tab.
+                </div>
+            </div>
+            
+            <div class="form-group branch-settings">
+                <label>
+                    <input type="checkbox" id="show-branch-selection" />
+                    Show branch selection (defaults to main branch)
+                </label>
+            </div>
+            
+            <button id="check-dependencies-btn">Check Dependencies</button>
+            
+            <div id="dependencies-results" class="form-group" style="display: none;">
+                <h3>Dependency Mismatches</h3>
+                <div id="python-mismatches">
+                    <h4>Python Dependencies</h4>
+                    <div id="python-mismatches-content"></div>
+                    <div class="empty-state" id="no-python-mismatches" style="display: none;">
+                        No Python dependency mismatches found
+                    </div>
+                </div>
+                <div id="go-mismatches">
+                    <h4>Go Dependencies</h4>
+                    <div id="go-mismatches-content"></div>
+                    <div class="empty-state" id="no-go-mismatches" style="display: none;">
+                        No Go dependency mismatches found
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     <script src="popup.js"></script>
+    <script src="dependencies.js"></script>
 </body>
 </html>
