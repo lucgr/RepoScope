@@ -185,12 +185,30 @@ async function addUnifiedPRView(taskName) {
         const apiUrl = `${backendUrl}/api/prs/unified?${queryString}&username=${encodeURIComponent(username)}`;
         
         console.log("Fetching unified PRs using proxy from:", apiUrl);
-        const rawUnifiedPRs = await proxyFetch(apiUrl);
+        const rawUnifiedPRs = await proxyFetch(apiUrl, {
+            headers: {
+                'x-gitlab-token': gitlabToken
+            }
+        });
         console.log("Received unified PRs data:", rawUnifiedPRs);
+        
+        // Add more detailed logging to inspect PR data structure
+        if (Array.isArray(rawUnifiedPRs)) {
+            rawUnifiedPRs.forEach((task, i) => {
+                console.log(`Task ${i} (${task.task_name}) data:`, task);
+                if (task.prs && task.prs.length > 0) {
+                    console.log(`First PR in task ${task.task_name}:`, task.prs[0]);
+                    console.log(`Approval status field exists: ${task.prs[0].hasOwnProperty('user_has_approved')}`);
+                }
+            });
+        }
+        
+        // Check if rawUnifiedPRs is an array, if not wrap it in an array
+        const unifiedPRsArray = Array.isArray(rawUnifiedPRs) ? rawUnifiedPRs : [rawUnifiedPRs];
         
         // Deduplicate PRs within each task based on web_url - this step might be redundant if backend handles it,
         // but could be good for client-side robustness if multiple identical PRs were somehow returned for a task.
-        const dedupedUnifiedPRs = rawUnifiedPRs.map(task => {
+        const dedupedUnifiedPRs = unifiedPRsArray.map(task => {
             const uniquePRs = [];
             const seenUrls = new Set();
             if (task.prs) {
@@ -218,13 +236,19 @@ async function addUnifiedPRView(taskName) {
         console.log("Found matching task with PRs:", taskData);
 
         // Data from the backend already contains approval and pipeline status per PR
-        // The `isApproved` field for the view now comes from `pr.user_has_approved`
+        // The `isApproved` field for the view now comes from `pr.user_has_approved` or `pr.approved_by_user`
         const taskWithStatus = {
             ...taskData,
-            prs: taskData.prs.map(pr => ({
-                ...pr,
-                isApproved: pr.user_has_approved // Map backend field to view field
-            }))
+            prs: taskData.prs.map(pr => {
+                // Use the approval status from the backend response
+                // Check for different possible approval status field names from the API
+                const approvalStatus = pr.user_has_approved !== undefined ? pr.user_has_approved : false;
+                    
+                return {
+                    ...pr,
+                    isApproved: approvalStatus
+                };
+            })
         };
         
         console.log("Task with mapped status:", taskWithStatus);
@@ -242,8 +266,16 @@ async function addUnifiedPRView(taskName) {
             try {
                 console.log("Refreshing unified PR view for task:", taskName);
                 // Re-fetch data and update the view for the current task
-                const freshRawUnifiedPRs = await proxyFetch(apiUrl); // apiUrl already includes username
-                const freshDedupedUnifiedPRs = freshRawUnifiedPRs.map(task => {
+                const freshRawUnifiedPRs = await proxyFetch(apiUrl, {
+                    headers: {
+                        'x-gitlab-token': gitlabToken
+                    }
+                }); // apiUrl already includes username
+                
+                // Check if freshRawUnifiedPRs is an array, if not wrap it in an array
+                const freshUnifiedPRsArray = Array.isArray(freshRawUnifiedPRs) ? freshRawUnifiedPRs : [freshRawUnifiedPRs];
+                
+                const freshDedupedUnifiedPRs = freshUnifiedPRsArray.map(task => {
                     const uniquePRs = [];
                     const seenUrls = new Set();
                     if (task.prs) {
@@ -264,7 +296,16 @@ async function addUnifiedPRView(taskName) {
                 if (freshTaskData && freshTaskData.prs && freshTaskData.prs.length > 0) {
                     const freshTaskWithStatus = {
                         ...freshTaskData,
-                        prs: freshTaskData.prs.map(pr => ({ ...pr, isApproved: pr.user_has_approved }))
+                        prs: freshTaskData.prs.map(pr => {
+                            // Use the approval status from the backend response
+                            // Check for different possible approval status field names from the API
+                            const approvalStatus = pr.user_has_approved !== undefined ? pr.user_has_approved : false;
+                                
+                            return {
+                                ...pr,
+                                isApproved: approvalStatus
+                            };
+                        })
                     };
                     const updatedView = createUnifiedView(freshTaskWithStatus);
                     const existingView = document.querySelector(".unified-pr-view");
@@ -296,17 +337,17 @@ async function addUnifiedPRView(taskName) {
 function getPipelineStatusEmoji(status) {
     if (!status) return "<span class=\"pipeline-status no-pipeline\">No pipelines</span>";
     
-    // TODO: Status emojis dont seem to be working, material icons are not loading.
+    // Using Unicode symbols instead of material icons
     switch (status) {
         case "success":
-            return "<span class=\"pipeline-status success\"><i class=\"material-icons\">check_circle</i> Pipeline succeeded</span>";
+            return "<span class=\"pipeline-status success\">✅ Pipeline succeeded</span>";
         case "failed":
-            return "<span class=\"pipeline-status failed\"><i class=\"material-icons\">error</i> Pipeline failed</span>";
+            return "<span class=\"pipeline-status failed\">❌ Pipeline failed</span>";
         case "running":
         case "pending":
-            return "<span class=\"pipeline-status running\"><i class=\"material-icons\">sync</i> Pipeline running</span>";
+            return "<span class=\"pipeline-status running\">⏳ Pipeline running</span>";
         default:
-            return "<span class=\"pipeline-status unknown\"><i class=\"material-icons\">help</i> " + status + "</span>";
+            return "<span class=\"pipeline-status unknown\">❓ " + status + "</span>";
     }
 }
 
@@ -321,7 +362,21 @@ function createUnifiedView(taskPRs) {
     header.innerHTML = `
         <h3>Related Merge Requests</h3>
         <div class="task-name">Task: ${taskPRs.task_name}</div>
+        <button class="refresh-view-btn">🔄 Refresh</button>
     `;
+    
+    // Add event listener for refresh button
+    setTimeout(() => {
+        const refreshBtn = container.querySelector(".refresh-view-btn");
+        if (refreshBtn) {
+            refreshBtn.addEventListener("click", async () => {
+                console.log("Manual refresh triggered");
+                // Refresh the view
+                await addUnifiedPRView(taskPRs.task_name);
+            });
+        }
+    }, 0);
+    
     container.appendChild(header);
 
     // Create PR list
@@ -406,9 +461,9 @@ async function injectUnifiedView(view) {
 
 async function approveAllPRs(taskName) {
     try {
-        const { backendUrl, repoUrls } = await chrome.storage.sync.get(["backendUrl", "repoUrls"]);
+        const { backendUrl, repoUrls, gitlabToken } = await chrome.storage.sync.get(["backendUrl", "repoUrls", "gitlabToken"]);
         
-        if (!backendUrl || !repoUrls) {
+        if (!backendUrl || !repoUrls || !gitlabToken) {
             console.error("Missing required settings");
             return;
         }
@@ -420,6 +475,7 @@ async function approveAllPRs(taskName) {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                "x-gitlab-token": gitlabToken
             },
             body: JSON.stringify({
                 repo_urls: urls
@@ -449,18 +505,24 @@ async function approveAllPRs(taskName) {
         // Instead of reloading the page, update the view with new data
         const queryString = urls.map(url => `repo_urls=${encodeURIComponent(url)}`).join("&");
         try {
-            const unifiedPRs = await proxyFetch(`${backendUrl}/api/prs/unified?${queryString}`);
+            const unifiedPRs = await proxyFetch(`${backendUrl}/api/prs/unified?${queryString}`, {
+                headers: {
+                    "x-gitlab-token": gitlabToken
+                }
+            });
             const taskPRs = unifiedPRs.find(task => task.task_name === taskName);
             
             if (taskPRs) {
                 // Check approval status for each PR and pipeline status if needed
                 const prsWithStatus = await Promise.all(taskPRs.prs.map(async (pr) => {
-                    const approvalStatus = await checkPRApprovalStatus(pr.web_url);
+                    // Use the approval status from the backend response
+                    // Check for different possible approval status field names from the API
+                    const approvalStatus = pr.user_has_approved !== undefined ? pr.user_has_approved : false;
                     
                     // Check pipeline status if not available
                     let pipelineStatus = pr.pipeline_status;
                     if (!pipelineStatus) {
-                        pipelineStatus = await checkPRPipelineStatus(pr.web_url);
+                        pipelineStatus = pr.pipeline_status; // Just use what we already have
                     }
                     
                     return { 

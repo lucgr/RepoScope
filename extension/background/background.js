@@ -24,8 +24,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         
         (async () => {
             try {
+                // Ensure we have proper request options with headers
+                const fetchOptions = {
+                    method: request.options?.method || 'GET',
+                    headers: request.options?.headers || {},
+                    body: request.options?.body
+                };
+                
                 // Execute the fetch request from the background script and convert to JSON
-                const response = await fetch(request.url, request.options || {});
+                const response = await fetch(request.url, fetchOptions);
                 const data = await response.json();
                 
                 // Send back the response

@@ -214,4 +214,38 @@
 .pipeline-status.unknown {
     color: #888;
     font-size: 12px;
+}
+
+.refresh-view-btn {
+    background: #f1f1f1;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    margin-left: 10px;
+    transition: background-color 0.2s;
+}
+
+.refresh-view-btn:hover {
+    background: #e0e0e0;
+}
+
+.header-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.fix-username-btn {
+    background: #f1f1f1;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.fix-username-btn:hover {
+    background: #e0e0e0;
 } 

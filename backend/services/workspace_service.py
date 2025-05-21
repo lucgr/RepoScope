@@ -50,22 +50,61 @@ class WorkspaceService:
             safe_name = workspace_name.replace('/', '_').replace(' ', '_')
         else:
             safe_name = task_name.replace('/', '_').replace(' ', '_')
-            
-        workspace_dir = os.path.join(self.workspace_root, safe_name)
         
+        # Add a timestamp to create a unique directory for each attempt
+        # This helps avoid conflicts with locked files from previous attempts
+        import time
+        unique_suffix = str(int(time.time()))
+        unique_safe_name = f"{safe_name}_{unique_suffix}"
+            
+        workspace_dir = os.path.join(self.workspace_root, unique_safe_name)
+        
+        # Instead of removing the existing workspace, we'll use a new unique directory
+        # This avoids file lock issues with previously created workspaces
         if os.path.exists(workspace_dir):
             try:
+                # Just in case the exact same timestamp exists (very unlikely)
                 shutil.rmtree(workspace_dir)
                 logger.info(f"Removed existing workspace directory: {workspace_dir}")
             except Exception as e:
-                logger.error(f"Failed to remove existing workspace: {str(e)}")
-                return {"status": "error", "message": f"Failed to remove existing workspace: {str(e)}"}
+                logger.warning(f"Could not remove existing workspace with same timestamp, trying a different name: {str(e)}")
+                # Add another random component to make it unique
+                import random
+                unique_safe_name = f"{safe_name}_{unique_suffix}_{random.randint(1000, 9999)}"
+                workspace_dir = os.path.join(self.workspace_root, unique_safe_name)
         
         try:
             os.makedirs(workspace_dir)
+            logger.info(f"Created new workspace directory: {workspace_dir}")
         except Exception as e:
             logger.error(f"Failed to create workspace directory: {str(e)}")
             return {"status": "error", "message": f"Failed to create workspace directory: {str(e)}"}
+        
+        # Clean up old workspaces with same base name to avoid filling disk space
+        # Do this in a try/except block and don't fail if cleanup fails
+        try:
+            # Look for directories that match the base name pattern
+            base_dirs = [d for d in os.listdir(self.workspace_root) 
+                        if os.path.isdir(os.path.join(self.workspace_root, d)) 
+                        and d.startswith(f"{safe_name}_") 
+                        and d != unique_safe_name]
+            
+            # Sort by creation time, oldest first
+            base_dirs.sort(key=lambda d: os.path.getctime(os.path.join(self.workspace_root, d)))
+            
+            # Keep only the 3 most recent directories (plus the new one we're creating)
+            dirs_to_remove = base_dirs[:-2] if len(base_dirs) > 2 else []
+            
+            for old_dir in dirs_to_remove:
+                old_path = os.path.join(self.workspace_root, old_dir)
+                try:
+                    logger.info(f"Attempting to clean up old workspace: {old_path}")
+                    shutil.rmtree(old_path, ignore_errors=True)
+                except Exception as e:
+                    # Just log but don't fail if we can't remove old directories
+                    logger.warning(f"Could not remove old workspace directory {old_path}: {str(e)}")
+        except Exception as e:
+            logger.warning(f"Error during old workspace cleanup: {str(e)}")
         
         success, output = self._run_git_command(["git", "init"], cwd=workspace_dir)
         if not success:
@@ -113,6 +152,7 @@ class WorkspaceService:
         readme_content += "- `./multi-repo.sh status` - Show status of all repositories\n"
         readme_content += "- `./multi-repo.sh branch <branch-name>` - Create a new branch in all repositories\n"
         readme_content += "- `./multi-repo.sh checkout <branch-name>` - Checkout the specified branch in all repositories\n"
+        readme_content += "- `./multi-repo.sh pr \"Your PR title\"` - Create pull requests for all repositories with changes\n"
         
         readme_path = os.path.join(workspace_dir, "README.md")
         with open(readme_path, "w") as f:

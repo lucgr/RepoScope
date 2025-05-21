@@ -723,22 +723,64 @@ case "$COMMAND" in
         PR_METADATA=()
         for SUBMODULE in $SUBMODULES; do
             if [ -d "$SUBMODULE" ]; then
+                # Track if this repo has changes that need a PR
+                HAS_CHANGES=false
+                
+                cd "$SUBMODULE" || continue
+                
                 # Get current branch or use global branch name if specified
                 if [ -n "$GLOBAL_BRANCH_NAME" ]; then
                     CURRENT_BRANCH=$GLOBAL_BRANCH_NAME
                     # Make sure we're on the correct branch
-                    (cd "$SUBMODULE" && if [ "$(git rev-parse --abbrev-ref HEAD)" != "$GLOBAL_BRANCH_NAME" ]; then
-                        if git -C "$SUBMODULE" show-ref --verify --quiet refs/heads/$GLOBAL_BRANCH_NAME; then
-                            git -C "$SUBMODULE" checkout $GLOBAL_BRANCH_NAME;
+                    if [ "$(git rev-parse --abbrev-ref HEAD)" != "$GLOBAL_BRANCH_NAME" ]; then
+                        if git show-ref --verify --quiet refs/heads/$GLOBAL_BRANCH_NAME; then
+                            git checkout $GLOBAL_BRANCH_NAME;
                         else
                             echo -e "  ${RED}Branch $GLOBAL_BRANCH_NAME does not exist, skipping PR creation for $SUBMODULE${NC}"
+                            cd "$CURRENT_DIR" || exit
                             continue
                         fi
-                    fi)
+                    fi
                 else
-                    CURRENT_BRANCH=$(cd "$SUBMODULE" && git rev-parse --abbrev-ref HEAD)
+                    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
                 fi
-                REMOTE_URL=$(cd "$SUBMODULE" && git remote get-url origin)
+                
+                # Check if branch exists on remote
+                if git ls-remote --heads origin "$CURRENT_BRANCH" | grep -q "$CURRENT_BRANCH"; then
+                    # Check if there are unpushed commits
+                    if git log origin/${CURRENT_BRANCH}..${CURRENT_BRANCH} 2>/dev/null | grep -q .; then
+                        echo -e "  ${GREEN}Found unpushed commits in ${SUBMODULE}${NC}"
+                        HAS_CHANGES=true
+                    else 
+                        # Check if there are changes between local and remote
+                        git fetch origin "$CURRENT_BRANCH"
+                        if ! git diff --quiet origin/"$CURRENT_BRANCH"; then
+                            echo -e "  ${GREEN}Found changes between local and remote in ${SUBMODULE}${NC}"
+                            HAS_CHANGES=true
+                        else
+                            echo -e "  ${YELLOW}No changes detected in ${SUBMODULE}, skipping PR creation${NC}"
+                            cd "$CURRENT_DIR" || exit
+                            continue
+                        fi
+                    fi
+                else
+                    # New branch that doesn't exist on remote yet
+                    echo -e "  ${GREEN}New branch in ${SUBMODULE} that doesn't exist on remote yet${NC}"
+                    HAS_CHANGES=true
+                fi
+                
+                # Return to current directory
+                cd "$CURRENT_DIR" || continue
+                
+                # If no changes were detected, skip PR creation for this repo
+                if ! $HAS_CHANGES; then
+                    echo -e "  ${YELLOW}No changes to push in ${SUBMODULE}, skipping PR creation${NC}"
+                    continue
+                fi
+                
+                # Now proceed with PR creation as this repo has changes
+                cd "$SUBMODULE" || continue
+                REMOTE_URL=$(git remote get-url origin)
                 REPO_URL=""
                 IS_GITLAB=false
                 if [[ "$REMOTE_URL" =~ github.com ]]; then

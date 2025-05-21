@@ -246,6 +246,16 @@ function createVirtualWorkspace() {
             resultDiv.style.display = "block";
             cloneCommandEl.innerHTML = `✅ Workspace <strong style="font-family: monospace;">${filename}</strong> downloaded successfully! Check your downloads folder.`;
             
+            // Add workspace to history
+            const workspaceData = {
+                name: workspaceName,
+                task: taskName,
+                repos: selectedRepos,
+                created_at: new Date().toISOString(),
+                branch: branchName
+            };
+            addWorkspaceToHistory(workspaceData);
+            
             resetCreateButton();
             createBtn.textContent = "Create Another Workspace";
         })
@@ -273,6 +283,26 @@ function loadWorkspaceHistory() {
         // Clear container
         historyContainer.innerHTML = "";
         
+        // Add instructions section above the workspace history
+        const instructionsDiv = document.createElement("div");
+        instructionsDiv.className = "workspace-instructions";
+        instructionsDiv.style.marginBottom = "15px";
+        instructionsDiv.style.padding = "12px";
+        instructionsDiv.style.backgroundColor = "#f8f9fa";
+        instructionsDiv.style.border = "1px solid #e9ecef";
+        instructionsDiv.style.borderRadius = "4px";
+        instructionsDiv.style.fontSize = "0.9em";
+        instructionsDiv.style.color = "#495057";
+        instructionsDiv.innerHTML = `
+            <p style="margin-top: 0; margin-bottom: 8px;"><strong>Using Workspaces:</strong></p>
+            <ol style="margin: 0; padding-left: 20px;">
+                <li>Click <strong>Clone</strong> to download a workspace ZIP</li>
+                <li>Extract the ZIP file to your local machine</li>
+                <li>Navigate to the extracted folder and run: <code style="background: #eee; padding: 2px 4px; border-radius: 3px;">bash multi-repo.sh init</code></li>
+            </ol>
+        `;
+        historyContainer.appendChild(instructionsDiv);
+        
         // Show message if no history
         if (history.length === 0) {
             const emptyMsg = document.createElement("div");
@@ -281,6 +311,15 @@ function loadWorkspaceHistory() {
             historyContainer.appendChild(emptyMsg);
             return;
         }
+        
+        // Add a heading for the workspace history section
+        const historyHeading = document.createElement("h3");
+        historyHeading.style.fontSize = "1.1em";
+        historyHeading.style.margin = "15px 0 10px 0";
+        historyHeading.style.borderBottom = "1px solid #e9ecef";
+        historyHeading.style.paddingBottom = "5px";
+        historyHeading.textContent = "Workspace History";
+        historyContainer.appendChild(historyHeading);
         
         // Create table for history
         const table = document.createElement("table");
@@ -358,145 +397,131 @@ function loadWorkspaceHistory() {
             const cloneBtn = document.createElement("button");
             cloneBtn.className = "clone-history-btn";
             cloneBtn.textContent = "Clone";
-            cloneBtn.title = "Show clone command";
+            cloneBtn.title = "Download workspace ZIP";
             cloneBtn.addEventListener("click", function() {
-                // Find or create result div
-                let resultDiv = document.getElementById("history-clone-result");
-                if (!resultDiv) {
-                    resultDiv = document.createElement("div");
-                    resultDiv.id = "history-clone-result";
-                    resultDiv.className = "clone-result";
-                    historyContainer.appendChild(resultDiv);
-                }
+                // Show loading state
+                cloneBtn.disabled = true;
+                cloneBtn.textContent = "Downloading...";
                 
-                // Create or update clone command code element
-                let commandEl = resultDiv.querySelector("code");
-                if (!commandEl) {
-                    commandEl = document.createElement("code");
-                    commandEl.id = "history-clone-command";
+                // Get backend URL and token
+                chrome.storage.sync.get(["backendUrl", "gitlabToken"], function(data) {
+                    let backendUrl = data.backendUrl;
+                    const gitlabToken = data.gitlabToken;
                     
-                    // Style the clone command
-                    commandEl.style.backgroundColor = "#272822";
-                    commandEl.style.color = "#f8f8f2";
-                    commandEl.style.padding = "10px";
-                    commandEl.style.paddingLeft = "15px"; // Add more left padding for better visibility
-                    commandEl.style.borderRadius = "4px";
-                    commandEl.style.border = "1px solid #1e1f1c";
-                    commandEl.style.fontFamily = "monospace";
-                    commandEl.style.fontSize = "13px";
-                    commandEl.style.width = "100%";
-                    commandEl.style.boxSizing = "border-box";
-                    commandEl.style.display = "block";
-                    commandEl.style.overflow = "auto";
-                    commandEl.style.whiteSpace = "pre-wrap"; // Change to pre-wrap for better text wrapping
-                    commandEl.style.minHeight = "40px"; // Ensure minimum height
-                    commandEl.style.position = "relative"; // Set position to relative
-                    commandEl.style.zIndex = "2"; // Ensure command is on top
-                    
-                    resultDiv.appendChild(commandEl);
-                }
-                
-                // Command container should be relative for absolute positioned copy button
-                resultDiv.style.position = "relative";
-                
-                // Determine if it's a local path or remote URL
-                const url = workspace.clone_url;
-                const isLocalPath = url && (url.includes(":\\") || url.startsWith("/"));
-                
-                // Format the URL properly for git
-                let formattedUrl = url;
-                
-                if (isLocalPath) {
-                    // For local paths, convert them to file:/// format for Git
-                    formattedUrl = url.replace(/\\/g, "/");
-                    if (formattedUrl.startsWith("/")) {
-                        formattedUrl = "file://" + formattedUrl;
-                    } else {
-                        // Windows path needs three slashes
-                        formattedUrl = "file:///" + formattedUrl;
+                    if (!backendUrl || !gitlabToken) {
+                        alert("Please configure Backend URL and GitLab Token in Settings");
+                        cloneBtn.disabled = false;
+                        cloneBtn.textContent = "Clone";
+                        return;
                     }
-                    console.log("Converted history local path to Git URL:", formattedUrl);
-                }
-                
-                // For all URLs, use git clone format
-                const command = `git clone "${formattedUrl}" ${workspace.name}`;
-                console.log("Generated history clone command:", command);
-                
-                // Set the command text - just show the clone command, not the notes
-                commandEl.textContent = command;
-                
-                // Add note about next steps in a separate element
-                let noteEl = resultDiv.querySelector(".history-note");
-                if (!noteEl) {
-                    noteEl = document.createElement("div");
-                    noteEl.className = "history-note";
-                    noteEl.style.marginTop = "15px";
-                    noteEl.style.fontSize = "0.9em";
-                    noteEl.style.color = "#555";
-                    noteEl.style.backgroundColor = "#f5f7f9";
-                    noteEl.style.padding = "10px";
-                    noteEl.style.borderRadius = "4px";
-                    noteEl.style.border = "1px solid #e0e5e9";
-                    resultDiv.appendChild(noteEl);
-                }
-                
-                noteEl.innerHTML = `
-                    <p style="margin-top: 0; font-weight: 600;">After cloning:</p>
-                    <ol style="padding-left: 20px; margin-bottom: 0;">
-                        <li>Initialize workspace: <code style="background: #eee; padding: 2px 4px; border-radius: 3px;">bash multi-repo.sh init</code></li>
-                    </ol>
-                `;
-                
-                // Create or update copy button
-                let copyBtn = resultDiv.querySelector(".copy-history-cmd-btn");
-                if (!copyBtn) {
-                    copyBtn = document.createElement("button");
-                    copyBtn.className = "copy-history-cmd-btn";
-                    copyBtn.textContent = "Copy";
                     
-                    // Style the copy button
-                    copyBtn.style.position = "absolute";
-                    copyBtn.style.right = "10px";
-                    copyBtn.style.top = "8px";
-                    copyBtn.style.padding = "4px 8px";
-                    copyBtn.style.fontSize = "12px";
-                    copyBtn.style.backgroundColor = "#3E3D32";
-                    copyBtn.style.border = "1px solid #4E4D42";
-                    copyBtn.style.color = "#f8f8f2";
-                    copyBtn.style.borderRadius = "3px";
-                    copyBtn.style.cursor = "pointer";
+                    backendUrl = backendUrl.replace(/\/+$/, "");
                     
-                    resultDiv.appendChild(copyBtn);
-                }
-                
-                // Remove existing listeners by cloning and replacing the button
-                const newCopyBtn = copyBtn.cloneNode(true);
-                // Transfer all styles
-                newCopyBtn.style.cssText = copyBtn.style.cssText;
-                copyBtn.parentNode.replaceChild(newCopyBtn, copyBtn);
-                
-                newCopyBtn.addEventListener("click", function() {
-                    copyToClipboard(commandEl.textContent, function(success) {
-                        if (success) {
-                            newCopyBtn.textContent = "Copied!";
-                            newCopyBtn.style.backgroundColor = "#27AE60";
-                            setTimeout(() => { 
-                                newCopyBtn.textContent = "Copy"; 
-                                newCopyBtn.style.backgroundColor = "#3E3D32";
-                            }, 2000);
-                        } else {
-                            newCopyBtn.textContent = "Failed";
-                            newCopyBtn.style.backgroundColor = "#E74C3C";
-                            setTimeout(() => { 
-                                newCopyBtn.textContent = "Copy"; 
-                                newCopyBtn.style.backgroundColor = "#3E3D32";
-                            }, 2000);
+                    // Create payload from saved workspace data
+                    const payload = {
+                        name: workspace.name,
+                        workspace_name: workspace.name,
+                        repo_name: workspace.name,
+                        repository_name: workspace.name,
+                        project_name: workspace.name,
+                        task_name: workspace.task,
+                        branch_name: workspace.branch || workspace.task,
+                        repo_urls: workspace.repos,
+                        use_custom_name: true,
+                        use_workspace_name: true,
+                        force_name_override: true
+                    };
+                    
+                    // Create the workspace again
+                    fetch(`${backendUrl}/api/workspace/create`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "x-gitlab-token": gitlabToken,
+                            "x-requested-name": workspace.name 
+                        },
+                        body: JSON.stringify(payload)
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.json().then(errData => {
+                                console.error("Error details from API:", errData);
+                                throw new Error(`Failed to create workspace: ${response.status} - ${errData.detail || JSON.stringify(errData)}`);
+                            }).catch(parseErr => { 
+                                console.error("Failed to parse error JSON, or not a JSON error:", parseErr);
+                                throw new Error(`Failed to create workspace: ${response.status} - ${response.statusText || "Server error"}`);
+                            });
                         }
+                        
+                        // Extract filename from content-disposition header
+                        const contentDisposition = response.headers.get("content-disposition");
+                        let filename = `${workspace.name}.zip`; // Default filename
+                        if (contentDisposition) {
+                            const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+                            if (filenameMatch && filenameMatch.length > 1) {
+                                filename = filenameMatch[1];
+                            }
+                        }
+                        return response.blob().then(blob => ({ blob, filename }));
+                    })
+                    .then(({ blob, filename }) => {
+                        // Create download link and trigger it
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.style.display = "none";
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+                        
+                        // Show success message
+                        cloneBtn.textContent = "Downloaded";
+                        setTimeout(() => {
+                            cloneBtn.disabled = false;
+                            cloneBtn.textContent = "Clone";
+                        }, 2000);
+                        
+                        // Update the popup UI to show what happened
+                        const statusEl = document.getElementById("workspace-status-message");
+                        if (!statusEl) {
+                            const statusDiv = document.createElement("div");
+                            statusDiv.id = "workspace-status-message";
+                            statusDiv.style.marginTop = "10px";
+                            historyContainer.insertBefore(statusDiv, historyContainer.firstChild);
+                        }
+                        document.getElementById("workspace-status-message").innerHTML = 
+                            `<div style="background-color: #e6f7e6; padding: 10px; border-left: 4px solid #27ae60; margin-bottom: 10px;">
+                              <strong style="color: #27ae60;">SUCCESS:</strong> Workspace <strong>${filename}</strong> downloaded successfully!
+                             </div>
+                             <small style="font-size: 0.9em; color: #555; display: block;">
+                                After extracting the ZIP, initialize with: <code style="background: #f5f5f5; padding: 2px 4px; border-radius: 3px;">bash multi-repo.sh init</code>
+                             </small>`;
+                    })
+                    .catch(error => {
+                        console.error("Failed to download workspace:", error);
+                        cloneBtn.disabled = false;
+                        cloneBtn.textContent = "Error";
+                        setTimeout(() => {
+                            cloneBtn.textContent = "Clone";
+                        }, 2000);
+                        
+                        // Show error message
+                        const statusEl = document.getElementById("workspace-status-message");
+                        if (!statusEl) {
+                            const statusDiv = document.createElement("div");
+                            statusDiv.id = "workspace-status-message";
+                            statusDiv.style.marginTop = "10px";
+                            historyContainer.insertBefore(statusDiv, historyContainer.firstChild);
+                        }
+                        document.getElementById("workspace-status-message").innerHTML = 
+                            `<div style="background-color: #fae7e7; padding: 10px; border-left: 4px solid #e74c3c; margin-bottom: 10px;">
+                              <strong style="color: #e74c3c;">ERROR:</strong> ${error.message}
+                             </div>`;
                     });
                 });
-                
-                // Show the result
-                resultDiv.style.display = "block";
             });
             
             actionsCell.appendChild(cloneBtn);
@@ -601,7 +626,8 @@ document.addEventListener("DOMContentLoaded", function() {
         createBtn.addEventListener("click", createVirtualWorkspace);
     }
 
-    // loadWorkspaceHistory(); // If you still want this feature
+    loadWorkspaceHistory(); // Load workspace history on popup open
+    
     // Consider removing or repurposing the copy clone command button logic
     // const copyBtn = document.getElementById("copy-clone-command-btn");
     // if (copyBtn) copyBtn.style.display = "none"; 

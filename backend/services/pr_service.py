@@ -67,17 +67,34 @@ class PRService:
         user_has_approved = False
         approvers_list = []
         try:
-            approvals = mr_object.approvals.get()
-            if approvals:
-                approved_by_users = getattr(approvals, 'approved_by', [])
-                if approved_by_users:
-                    for approver_info in approved_by_users:
-                        if hasattr(approver_info, 'user') and isinstance(approver_info.user, dict):
-                            approvers_list.append(approver_info.user)
-                            if self.current_username and approver_info.user.get('username') == self.current_username:
-                                user_has_approved = True
+            # Get the approval data - this returns the full detailed approval information
+            logger.info(f"Getting approvals for MR {mr_object.iid}")
+            
+            # Directly access the approvals endpoint for more reliable data
+            project_id = mr_object.project_id
+            mr_iid = mr_object.iid
+            
+            # Get the raw approvals data
+            approvals_data = self.gl.http_get(f'/projects/{project_id}/merge_requests/{mr_iid}/approvals')
+            
+            if 'approved_by' in approvals_data:
+                # Process the raw approved_by data
+                for approver_data in approvals_data['approved_by']:
+                    if 'user' in approver_data and isinstance(approver_data['user'], dict):
+                        # Add to approvers list
+                        approvers_list.append(approver_data['user'])
+                        
+                        # Check if current user has approved
+                        if self.current_username and approver_data['user'].get('username') == self.current_username:
+                            user_has_approved = True
+                            logger.info(f"Current user {self.current_username} has approved MR {mr_object.iid}")
+            
+            # Log the results for debugging
+            logger.info(f"MR {mr_object.iid} - Approvers: {[a.get('username') for a in approvers_list]}, Current user approved: {user_has_approved}")
+            
         except Exception as e:
             logger.error(f"Error fetching approval details for MR {mr_object.iid}: {e}")
+        
         return {"user_has_approved": user_has_approved, "approvers": approvers_list}
 
     def _fetch_prs_for_repo(self, repo_url: str) -> List[PR]:

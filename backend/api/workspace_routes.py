@@ -6,6 +6,7 @@ import logging
 import shutil
 import os
 import tempfile
+import time
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -90,29 +91,37 @@ async def create_virtual_workspace(
 
         # Define where the zip file will be created temporarily
         # Needs to be in a place the app can write, /tmp is good in Cloud Run
-        temp_zip_base_path = os.path.join(tempfile.gettempdir(), safe_name + "_archive")
+        temp_zip_base_path = os.path.join(tempfile.gettempdir(), f"{safe_name}_archive_{int(time.time())}")
 
         logger.info(f"Zipping directory: {workspace_dir_path} into {temp_zip_base_path}.zip")
-        zip_file_path = shutil.make_archive(
-            base_name=temp_zip_base_path, 
-            format='zip',              
-            root_dir=archive_root_dir,  
-            base_dir=archive_base_dir  
-        )
-        zip_file_path_for_cleanup = zip_file_path # Keep track for potential background cleanup
+        try:
+            zip_file_path = shutil.make_archive(
+                base_name=temp_zip_base_path, 
+                format='zip',              
+                root_dir=archive_root_dir,  
+                base_dir=archive_base_dir  
+            )
+            zip_file_path_for_cleanup = zip_file_path # Keep track for potential background cleanup
 
-        logger.info(f"Successfully created zip file: {zip_file_path}")
+            logger.info(f"Successfully created zip file: {zip_file_path}")
 
-        # Add cleanup tasks to run after the response is sent
-        background_tasks.add_task(cleanup_files, workspace_dir_path_for_cleanup, zip_file_path_for_cleanup)
+            # Add cleanup tasks to run after the response is sent
+            background_tasks.add_task(cleanup_files, workspace_dir_path_for_cleanup, zip_file_path_for_cleanup)
 
-        return FileResponse(
-            path=zip_file_path, 
-            media_type='application/zip', 
-            filename=f"{safe_name}.zip",
-            # FileResponse will delete the file if it's in a temp directory on some OS, 
-            # but explicit cleanup is better for clarity / cross-platform.
-        )
+            return FileResponse(
+                path=zip_file_path, 
+                media_type='application/zip', 
+                filename=f"{safe_name}.zip",  # Use the clean name (without timestamp) for the downloaded file
+                # FileResponse will delete the file if it's in a temp directory on some OS, 
+                # but explicit cleanup is better for clarity / cross-platform.
+            )
+        except Exception as e:
+            logger.error(f"Failed to create or send zip file: {str(e)}")
+            if workspace_dir_path_for_cleanup:
+                # Don't try to clean up immediately, might cause more issues
+                # Just log the error and let the cleanup happen in the next run
+                logger.warning(f"Leaving workspace directory for delayed cleanup: {workspace_dir_path_for_cleanup}")
+            raise HTTPException(status_code=500, detail=f"Failed to create workspace archive: {str(e)}")
 
     except HTTPException: # Re-raise HTTPExceptions directly to preserve status code and detail
         raise
