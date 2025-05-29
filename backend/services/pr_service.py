@@ -1,9 +1,10 @@
-from typing import List, Dict
+from typing import List, Dict, Optional, Set
 import re
 from ..models.pr import PR, UnifiedPR
 import gitlab
 import logging
 import concurrent.futures
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -46,21 +47,32 @@ class PRService:
             logger.error(f"Error getting project from URL {repo_url}: {str(e)}")
             raise ValueError(f"Repository not found: {repo_url}")
 
-    def get_pipeline_status(self, project, mr_iid):
-        """Get the latest pipeline status for a merge request."""
+    def get_pipeline_status_batch(self, project, mr_list):
+        """Get pipeline status for multiple MRs in batch to reduce API calls."""
+        pipeline_statuses = {}
         try:
-            mr = project.mergerequests.get(mr_iid)
-            # Fetches only the most recent pipeline
-            # TODO: this should be extended in case older pipelines are still running 
-            pipelines = mr.pipelines.list(per_page=1, page=1, order_by='id', sort='desc')
+            # Get recent pipelines for the project (more efficient than per-MR calls)
+            recent_pipelines = project.pipelines.list(
+                per_page=100, 
+                page=1, 
+                order_by='id', 
+                sort='desc',
+                updated_after=(datetime.now() - timedelta(days=7)).isoformat()
+            )
             
-            if pipelines and len(pipelines) > 0:
-                return pipelines[0].status
-            
-            return None
+            # Create a mapping of MR to its latest pipeline
+            for pipeline in recent_pipelines:
+                if hasattr(pipeline, 'ref'):
+                    # Find MRs that match this pipeline's branch
+                    for mr in mr_list:
+                        if mr.source_branch == pipeline.ref:
+                            if mr.iid not in pipeline_statuses:
+                                pipeline_statuses[mr.iid] = pipeline.status
+                            
         except Exception as e:
-            logger.error(f"Error getting pipeline status for MR {mr_iid}: {str(e)}")
-            return None
+            logger.error(f"Error getting batch pipeline status: {str(e)}")
+            
+        return pipeline_statuses
 
     def get_pr_approval_details(self, mr_object) -> dict:
         """Get approval details for a given merge request object."""
@@ -68,7 +80,7 @@ class PRService:
         approvers_list = []
         try:
             # Get the approval data - this returns the full detailed approval information
-            logger.info(f"Getting approvals for MR {mr_object.iid}")
+            logger.debug(f"Getting approvals for MR {mr_object.iid}")
             
             # Directly access the approvals endpoint for more reliable data
             project_id = mr_object.project_id
@@ -87,29 +99,64 @@ class PRService:
                         # Check if current user has approved
                         if self.current_username and approver_data['user'].get('username') == self.current_username:
                             user_has_approved = True
-                            logger.info(f"Current user {self.current_username} has approved MR {mr_object.iid}")
+                            logger.debug(f"Current user {self.current_username} has approved MR {mr_object.iid}")
             
             # Log the results for debugging
-            logger.info(f"MR {mr_object.iid} - Approvers: {[a.get('username') for a in approvers_list]}, Current user approved: {user_has_approved}")
+            logger.debug(f"MR {mr_object.iid} - Approvers: {[a.get('username') for a in approvers_list]}, Current user approved: {user_has_approved}")
             
         except Exception as e:
             logger.error(f"Error fetching approval details for MR {mr_object.iid}: {e}")
         
         return {"user_has_approved": user_has_approved, "approvers": approvers_list}
 
-    def _fetch_prs_for_repo(self, repo_url: str) -> List[PR]:
-        """Helper function to fetch PRs for a single repository."""
+    def _fetch_prs_for_repo(self, repo_url: str, 
+                           limit: int = 30, 
+                           include_pipeline_status: bool = True,
+                           recent_only: bool = True) -> List[PR]:
+        """Helper function to fetch PRs for a single repository with smart limits."""
         repo_prs = []
         try:
-            logger.debug(f"Fetching PRs for repository: {repo_url}")
+            logger.debug(f"Fetching PRs for repository: {repo_url} (limit: {limit})")
             project = self.get_project_from_url(repo_url)
-            # Consider adding filters here if all 'opened' MRs are too many
-            merge_requests = project.mergerequests.list(state='opened', get_all=True)
             
+            # Build query parameters for recent, limited PRs
+            query_params = {
+                'state': 'opened',
+                'per_page': min(limit, 50),  # GitLab API limit
+                'page': 1,
+                'order_by': 'updated_at',
+                'sort': 'desc'
+            }
+            
+            # Only fetch recent PRs if specified
+            if recent_only:
+                updated_after = datetime.now() - timedelta(days=30)
+                query_params['updated_after'] = updated_after.isoformat()
+            
+            # Fetch limited set of MRs
+            merge_requests = project.mergerequests.list(**query_params)
+            
+            # Limit to exactly what we need
+            merge_requests = merge_requests[:limit]
+            
+            logger.info(f"Fetched {len(merge_requests)} MRs from {repo_url}")
+            
+            # Get pipeline statuses in batch if requested
+            pipeline_statuses = {}
+            if include_pipeline_status and merge_requests:
+                pipeline_statuses = self.get_pipeline_status_batch(project, merge_requests)
+            
+            # Process MRs into PRs
             for mr in merge_requests:
                 task_name = self.extract_task_name(mr.source_branch)
-                pipeline_status = self.get_pipeline_status(project, mr.iid)
-                approval_details = self.get_pr_approval_details(mr) # Pass the mr object itself
+                
+                # Get pipeline status from batch or set to None
+                pipeline_status = pipeline_statuses.get(mr.iid) if include_pipeline_status else None
+                
+                # Only get approval details if we have a task name (to reduce unnecessary API calls)
+                approval_details = {"user_has_approved": False, "approvers": []}
+                if task_name:  # Only fetch approval details for PRs that belong to tasks
+                    approval_details = self.get_pr_approval_details(mr)
                 
                 pr = PR(
                     id=mr.id,
@@ -131,30 +178,49 @@ class PRService:
                     pipeline_status=pipeline_status,
                     user_has_approved=approval_details["user_has_approved"],
                     approvers=approval_details["approvers"]
-                    # changes_count and comments_count seem to be missing from python-gitlab MR object by default
-                    # these might require additional API calls or come from a different source if needed.
                 )
                 repo_prs.append(pr)
+                
         except Exception as e:
             logger.error(f"Error fetching PRs for repository {repo_url}: {str(e)}")
         return repo_prs
 
-    def fetch_prs(self, repo_urls: List[str]) -> List[PR]:
-        """Fetch PRs from multiple GitLab repositories concurrently with improved error handling."""
+    def fetch_prs(self, repo_urls: List[str], 
+                  limit_per_repo: int = 30,
+                  include_pipeline_status: bool = True,
+                  recent_only: bool = True) -> List[PR]:
+        """Fetch PRs from multiple GitLab repositories concurrently with smart limits."""
         all_prs = []
-        # Use ThreadPoolExecutor to fetch from repositories in parallel
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(repo_urls) or 1) as executor:
-            future_to_url = {executor.submit(self._fetch_prs_for_repo, repo_url): repo_url for repo_url in repo_urls}
+        # Limit concurrent requests to avoid overwhelming GitLab API
+        max_workers = min(len(repo_urls), 8)
+        
+        logger.info(f"Fetching PRs from {len(repo_urls)} repositories with {max_workers} workers")
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_url = {
+                executor.submit(
+                    self._fetch_prs_for_repo, 
+                    repo_url, 
+                    limit_per_repo,
+                    include_pipeline_status,
+                    recent_only
+                ): repo_url 
+                for repo_url in repo_urls
+            }
+            
             for future in concurrent.futures.as_completed(future_to_url):
                 repo_url = future_to_url[future]
                 try:
                     repo_prs = future.result()
                     all_prs.extend(repo_prs)
+                    logger.debug(f"Got {len(repo_prs)} PRs from {repo_url}")
                 except Exception as exc:
                     logger.error(f"Repository {repo_url} generated an exception during PR fetching: {exc}")
+        
+        logger.info(f"Total PRs fetched: {len(all_prs)}")
         return all_prs
 
-    def unify_prs(self, prs: List[PR]) -> List[UnifiedPR]:
+    def unify_prs(self, prs: List[PR], include_single_pr_tasks: bool = False) -> List[UnifiedPR]:
         """Group PRs by task name and create unified views."""
         task_groups: Dict[str, List[PR]] = {}
         
@@ -168,7 +234,8 @@ class PRService:
         # Create unified PR views
         unified_prs = []
         for task_name, grouped_prs in task_groups.items():
-            if len(grouped_prs) > 1:  # Only create unified views for tasks with multiple PRs
+            # For full loads, include all tasks; for fast loads, only multi-PR tasks
+            if include_single_pr_tasks or len(grouped_prs) > 1:
                 # Determine overall status
                 status = 'open'
                 if all(pr.state == 'merged' for pr in grouped_prs):
@@ -189,5 +256,5 @@ class PRService:
                 )
                 unified_prs.append(unified_pr)
         
-        logger.info(f"Created {len(unified_prs)} unified PR views")
+        logger.info(f"Created {len(unified_prs)} unified PR views (include_single: {include_single_pr_tasks})")
         return unified_prs

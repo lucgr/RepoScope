@@ -10,7 +10,7 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo "multi-repo.sh version: 2024-05-15"
+echo "multi-repo.sh version: 2025-05-15"
 
 # Display help information
 function show_help {

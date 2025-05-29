@@ -192,7 +192,7 @@ cd backend
 pip install -r requirements.txt
 
 # Run the server (Uvicorn will typically run on http://localhost:8000)
-uvicorn main:app --reload
+uvicorn backend.main:app --reload
 ```
 Make sure your extension's Backend URL setting points to `http://localhost:8000`.
 
