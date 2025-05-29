@@ -7,7 +7,6 @@ import random
 from typing import List, Tuple, Dict, Any
 from urllib.parse import urlparse, urlunparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import threading
 import time
 # from ..models.pr import VirtualWorkspaceResponse # This model might not be directly returned by this method anymore for success cases
 
@@ -88,7 +87,7 @@ class WorkspaceService:
             if os.path.exists(submodule_path):
                 try:
                     shutil.rmtree(submodule_path)
-                except:
+                except Exception:
                     pass
                     
             success, output = self._run_git_command(
@@ -292,7 +291,7 @@ class WorkspaceService:
             for repo_url in failed_repos:
                 repo_name_from_url = repo_url.split("/")[-1].replace(".git", "")
                 readme_content += f"- [{repo_name_from_url}]({repo_url}) ⚠️\n"
-            readme_content += f"\nTo add them manually, use:\n```bash\ngit submodule add <repository-url> <directory-name>\n```\n\n"
+            readme_content += "\nTo add them manually, use:\n```bash\ngit submodule add <repository-url> <directory-name>\n```\n\n"
         
         readme_content += "\n## Usage\n\nThis workspace includes helper scripts for working with multiple repositories:\n\n"
         readme_content += "- `./multi-repo.sh init` - Initialize the workspace (submodules are added and branches created)\n"

@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional, Set
+from typing import List, Dict
 import re
 from ..models.pr import PR, UnifiedPR
 import gitlab

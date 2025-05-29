@@ -187,7 +187,7 @@ async function addUnifiedPRView(taskName) {
         console.log("Fetching unified PRs using proxy from:", apiUrl);
         const rawUnifiedPRs = await proxyFetch(apiUrl, {
             headers: {
-                'x-gitlab-token': gitlabToken
+                "x-gitlab-token": gitlabToken
             }
         });
         console.log("Received unified PRs data:", rawUnifiedPRs);
@@ -198,7 +198,7 @@ async function addUnifiedPRView(taskName) {
                 console.log(`Task ${i} (${task.task_name}) data:`, task);
                 if (task.prs && task.prs.length > 0) {
                     console.log(`First PR in task ${task.task_name}:`, task.prs[0]);
-                    console.log(`Approval status field exists: ${task.prs[0].hasOwnProperty('user_has_approved')}`);
+                    console.log(`Approval status field exists: ${task.prs[0].hasOwnProperty("user_has_approved")}`);
                 }
             });
         }
@@ -268,7 +268,7 @@ async function addUnifiedPRView(taskName) {
                 // Re-fetch data and update the view for the current task
                 const freshRawUnifiedPRs = await proxyFetch(apiUrl, {
                     headers: {
-                        'x-gitlab-token': gitlabToken
+                        "x-gitlab-token": gitlabToken
                     }
                 }); // apiUrl already includes username
                 

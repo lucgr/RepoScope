@@ -465,7 +465,7 @@ function cloneWorkspaceFromHistory(workspace, button, historyContainer) {
             force_name_override: true
         };
         
-        console.log(`Using regular workspace creation mode for history clone`);
+        console.log("Using regular workspace creation mode for history clone");
         
         // Create the workspace again
         fetch(`${backendUrl}/api/workspace/create`, {

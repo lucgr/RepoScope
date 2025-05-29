@@ -26,7 +26,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             try {
                 // Ensure we have proper request options with headers
                 const fetchOptions = {
-                    method: request.options?.method || 'GET',
+                    method: request.options?.method || "GET",
                     headers: request.options?.headers || {},
                     body: request.options?.body
                 };

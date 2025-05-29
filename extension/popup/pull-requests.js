@@ -78,7 +78,7 @@ function loadUnifiedPRs(fastMode = true) {
         })
         .then(data => {
             const loadTime = Date.now() - startTime;
-            console.log(`Unified PRs loaded in ${loadTime}ms (${fastMode ? 'fast' : 'full'} mode):`, JSON.stringify(data, null, 2));
+            console.log(`Unified PRs loaded in ${loadTime}ms (${fastMode ? "fast" : "full"} mode):`, JSON.stringify(data, null, 2));
             
             // Always completely replace the UI content
             updateUnifiedPRsUI(data, fastMode);
@@ -362,7 +362,7 @@ function updateUnifiedPRsUI(data, fastMode = false) {
     // Check if we got a single task or an array of tasks
     const tasks = Array.isArray(data) ? data : [data];
     
-    console.log(`Displaying ${tasks.length} tasks in ${fastMode ? 'fast' : 'full'} mode`);
+    console.log(`Displaying ${tasks.length} tasks in ${fastMode ? "fast" : "full"} mode`);
     
     // Process task groups
     tasks.forEach(task => {
@@ -388,7 +388,7 @@ function updateUnifiedPRsUI(data, fastMode = false) {
         prCount.style.fontSize = "12px";
         prCount.style.color = "#666";
         prCount.style.marginLeft = "8px";
-        prCount.textContent = `(${task.prs.length} PR${task.prs.length > 1 ? 's' : ''})`;
+        prCount.textContent = `(${task.prs.length} PR${task.prs.length > 1 ? "s" : ""})`;
         taskTitle.appendChild(prCount);
         
         // Add approve all button if there's more than one PR
