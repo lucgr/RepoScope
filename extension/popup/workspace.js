@@ -244,7 +244,8 @@ function createVirtualWorkspace() {
             
             console.log("Workspace ZIP downloaded successfully:", filename);
             resultDiv.style.display = "block";
-            cloneCommandEl.innerHTML = `✅ Workspace <strong style="font-family: monospace;">${filename}</strong> downloaded successfully! Check your downloads folder.`;
+            
+            cloneCommandEl.innerHTML = `✅ workspace <strong style="font-family: monospace;">${filename}</strong> downloaded successfully! Check your downloads folder.`;
             
             // Add workspace to history
             const workspaceData = {
@@ -399,129 +400,7 @@ function loadWorkspaceHistory() {
             cloneBtn.textContent = "Clone";
             cloneBtn.title = "Download workspace ZIP";
             cloneBtn.addEventListener("click", function() {
-                // Show loading state
-                cloneBtn.disabled = true;
-                cloneBtn.textContent = "Downloading...";
-                
-                // Get backend URL and token
-                chrome.storage.sync.get(["backendUrl", "gitlabToken"], function(data) {
-                    let backendUrl = data.backendUrl;
-                    const gitlabToken = data.gitlabToken;
-                    
-                    if (!backendUrl || !gitlabToken) {
-                        alert("Please configure Backend URL and GitLab Token in Settings");
-                        cloneBtn.disabled = false;
-                        cloneBtn.textContent = "Clone";
-                        return;
-                    }
-                    
-                    backendUrl = backendUrl.replace(/\/+$/, "");
-                    
-                    // Create payload from saved workspace data
-                    const payload = {
-                        name: workspace.name,
-                        workspace_name: workspace.name,
-                        repo_name: workspace.name,
-                        repository_name: workspace.name,
-                        project_name: workspace.name,
-                        task_name: workspace.task,
-                        branch_name: workspace.branch || workspace.task,
-                        repo_urls: workspace.repos,
-                        use_custom_name: true,
-                        use_workspace_name: true,
-                        force_name_override: true
-                    };
-                    
-                    // Create the workspace again
-                    fetch(`${backendUrl}/api/workspace/create`, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "x-gitlab-token": gitlabToken,
-                            "x-requested-name": workspace.name 
-                        },
-                        body: JSON.stringify(payload)
-                    })
-                    .then(response => {
-                        if (!response.ok) {
-                            return response.json().then(errData => {
-                                console.error("Error details from API:", errData);
-                                throw new Error(`Failed to create workspace: ${response.status} - ${errData.detail || JSON.stringify(errData)}`);
-                            }).catch(parseErr => { 
-                                console.error("Failed to parse error JSON, or not a JSON error:", parseErr);
-                                throw new Error(`Failed to create workspace: ${response.status} - ${response.statusText || "Server error"}`);
-                            });
-                        }
-                        
-                        // Extract filename from content-disposition header
-                        const contentDisposition = response.headers.get("content-disposition");
-                        let filename = `${workspace.name}.zip`; // Default filename
-                        if (contentDisposition) {
-                            const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
-                            if (filenameMatch && filenameMatch.length > 1) {
-                                filename = filenameMatch[1];
-                            }
-                        }
-                        return response.blob().then(blob => ({ blob, filename }));
-                    })
-                    .then(({ blob, filename }) => {
-                        // Create download link and trigger it
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.style.display = "none";
-                        a.href = url;
-                        a.download = filename;
-                        document.body.appendChild(a);
-                        a.click();
-                        
-                        window.URL.revokeObjectURL(url);
-                        document.body.removeChild(a);
-                        
-                        // Show success message
-                        cloneBtn.textContent = "Downloaded";
-                        setTimeout(() => {
-                            cloneBtn.disabled = false;
-                            cloneBtn.textContent = "Clone";
-                        }, 2000);
-                        
-                        // Update the popup UI to show what happened
-                        const statusEl = document.getElementById("workspace-status-message");
-                        if (!statusEl) {
-                            const statusDiv = document.createElement("div");
-                            statusDiv.id = "workspace-status-message";
-                            statusDiv.style.marginTop = "10px";
-                            historyContainer.insertBefore(statusDiv, historyContainer.firstChild);
-                        }
-                        document.getElementById("workspace-status-message").innerHTML = 
-                            `<div style="background-color: #e6f7e6; padding: 10px; border-left: 4px solid #27ae60; margin-bottom: 10px;">
-                              <strong style="color: #27ae60;">SUCCESS:</strong> Workspace <strong>${filename}</strong> downloaded successfully!
-                             </div>
-                             <small style="font-size: 0.9em; color: #555; display: block;">
-                                After extracting the ZIP, initialize with: <code style="background: #f5f5f5; padding: 2px 4px; border-radius: 3px;">bash multi-repo.sh init</code>
-                             </small>`;
-                    })
-                    .catch(error => {
-                        console.error("Failed to download workspace:", error);
-                        cloneBtn.disabled = false;
-                        cloneBtn.textContent = "Error";
-                        setTimeout(() => {
-                            cloneBtn.textContent = "Clone";
-                        }, 2000);
-                        
-                        // Show error message
-                        const statusEl = document.getElementById("workspace-status-message");
-                        if (!statusEl) {
-                            const statusDiv = document.createElement("div");
-                            statusDiv.id = "workspace-status-message";
-                            statusDiv.style.marginTop = "10px";
-                            historyContainer.insertBefore(statusDiv, historyContainer.firstChild);
-                        }
-                        document.getElementById("workspace-status-message").innerHTML = 
-                            `<div style="background-color: #fae7e7; padding: 10px; border-left: 4px solid #e74c3c; margin-bottom: 10px;">
-                              <strong style="color: #e74c3c;">ERROR:</strong> ${error.message}
-                             </div>`;
-                    });
-                });
+                cloneWorkspaceFromHistory(workspace, cloneBtn, historyContainer);
             });
             
             actionsCell.appendChild(cloneBtn);
@@ -547,6 +426,138 @@ function loadWorkspaceHistory() {
         
         table.appendChild(tbody);
         historyContainer.appendChild(table);
+    });
+}
+
+// Function to clone workspace from history (regular or fast mode)
+function cloneWorkspaceFromHistory(workspace, button, historyContainer) {
+    // Show loading state
+    button.disabled = true;
+    const originalText = button.textContent;
+    button.textContent = "Downloading...";
+    
+    // Get backend URL and token
+    chrome.storage.sync.get(["backendUrl", "gitlabToken"], function(data) {
+        let backendUrl = data.backendUrl;
+        const gitlabToken = data.gitlabToken;
+        
+        if (!backendUrl || !gitlabToken) {
+            alert("Please configure Backend URL and GitLab Token in Settings");
+            button.disabled = false;
+            button.textContent = originalText;
+            return;
+        }
+        
+        backendUrl = backendUrl.replace(/\/+$/, "");
+        
+        // Create payload from saved workspace data
+        const payload = {
+            name: workspace.name,
+            workspace_name: workspace.name,
+            repo_name: workspace.name,
+            repository_name: workspace.name,
+            project_name: workspace.name,
+            task_name: workspace.task,
+            branch_name: workspace.branch || workspace.task,
+            repo_urls: workspace.repos,
+            use_custom_name: true,
+            use_workspace_name: true,
+            force_name_override: true
+        };
+        
+        console.log(`Using regular workspace creation mode for history clone`);
+        
+        // Create the workspace again
+        fetch(`${backendUrl}/api/workspace/create`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-gitlab-token": gitlabToken,
+                "x-requested-name": workspace.name 
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(errData => {
+                    console.error("Error details from API:", errData);
+                    throw new Error(`Failed to create workspace: ${response.status} - ${errData.detail || JSON.stringify(errData)}`);
+                }).catch(parseErr => { 
+                    console.error("Failed to parse error JSON, or not a JSON error:", parseErr);
+                    throw new Error(`Failed to create workspace: ${response.status} - ${response.statusText || "Server error"}`);
+                });
+            }
+            
+            // Extract filename from content-disposition header
+            const contentDisposition = response.headers.get("content-disposition");
+            let filename = `${workspace.name}.zip`; // Default filename
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+                if (filenameMatch && filenameMatch.length > 1) {
+                    filename = filenameMatch[1];
+                }
+            }
+            return response.blob().then(blob => ({ blob, filename }));
+        })
+        .then(({ blob, filename }) => {
+            // Create download link and trigger it
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.style.display = "none";
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            // Show success message
+            button.textContent = "Downloaded";
+            setTimeout(() => {
+                button.disabled = false;
+                button.textContent = originalText;
+            }, 2000);
+            
+            // Update the popup UI to show what happened
+            const statusEl = document.getElementById("workspace-status-message");
+            if (!statusEl) {
+                const statusDiv = document.createElement("div");
+                statusDiv.id = "workspace-status-message";
+                statusDiv.style.marginTop = "10px";
+                historyContainer.insertBefore(statusDiv, historyContainer.firstChild);
+            }
+            const initText = "All repositories are included and ready to use";
+            
+            document.getElementById("workspace-status-message").innerHTML = 
+                `<div style="background-color: #e6f7e6; padding: 10px; border-left: 4px solid #27ae60; margin-bottom: 10px;">
+                  <strong style="color: #27ae60;">SUCCESS:</strong> workspace <strong>${filename}</strong> downloaded successfully!
+                 </div>
+                 <small style="font-size: 0.9em; color: #555; display: block;">
+                    ${initText}
+                 </small>`;
+        })
+        .catch(error => {
+            console.error("Failed to download workspace:", error);
+            button.disabled = false;
+            button.textContent = "Error";
+            setTimeout(() => {
+                button.textContent = originalText;
+            }, 2000);
+            
+            // Show error message
+            const statusEl = document.getElementById("workspace-status-message");
+            if (!statusEl) {
+                const statusDiv = document.createElement("div");
+                statusDiv.id = "workspace-status-message";
+                statusDiv.style.marginTop = "10px";
+                historyContainer.insertBefore(statusDiv, historyContainer.firstChild);
+            }
+            document.getElementById("workspace-status-message").innerHTML = 
+                `<div style="background-color: #fae7e7; padding: 10px; border-left: 4px solid #e74c3c; margin-bottom: 10px;">
+                  <strong style="color: #e74c3c;">ERROR:</strong> ${error.message}
+                 </div>`;
+        });
     });
 }
 
