@@ -283,6 +283,64 @@ button:hover {
     background: #168f48;
 }
 
+.all-approved {
+    background: #f3f9f4;
+    color: #1aaa55;
+    border: 1px solid #97d3a0;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-top: 8px;
+    text-align: center;
+    font-weight: 500;
+}
+
+/* Pipeline status badges */
+.pipeline-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    margin-right: 8px;
+    font-weight: normal;
+    vertical-align: middle;
+}
+
+.pipeline-badge .material-icons {
+    font-size: 20px;
+}
+
+.pipeline-success .material-icons {
+    color: #28a745;
+}
+
+.pipeline-failed .material-icons {
+    color: #dc3545;
+}
+
+.pipeline-running .material-icons {
+    color: #007bff;
+}
+
+.pipeline-pending .material-icons {
+    color: #ffc107;
+}
+
+.pipeline-canceled .material-icons {
+    color: #6c757d;
+}
+
+.pipeline-skipped .material-icons {
+    color: #17a2b8;
+}
+
+.pipeline-no_pipeline .material-icons {
+    color: #6c757d;
+}
+
+.pipeline-unknown .material-icons {
+    color: #6c757d;
+}
+
 .status {
     display: inline-block;
     padding: 4px 8px;
@@ -467,46 +525,6 @@ textarea {
     text-align: center;
     line-height: 20px;
     border-radius: 50%;
-}
-
-/* Simple Pipeline Status Badges */
-.pipeline-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 8px;
-    font-size: 12px;
-    border-radius: 4px;
-    font-weight: normal;
-    padding: 2px;
-}
-
-.pipeline-badge .material-icons {
-    font-size: 16px;
-}
-
-.pipeline-success {
-    color: #1aaa55;
-}
-
-.pipeline-failed {
-    color: #dd2b0e;
-}
-
-.pipeline-running {
-    color: #0077cc;
-}
-
-.pipeline-pending {
-    color: #ffa000;
-}
-
-.pipeline-canceled, .pipeline-skipped {
-    color: #757575;
-}
-
-.pipeline-unknown {
-    color: #757575;
 }
 
 /* Tab Navigation */
@@ -908,52 +926,6 @@ textarea {
 .pr-count {
     font-weight: normal !important;
     opacity: 0.7;
-}
-
-/* Pipeline status enhancements for fast loading */
-.pipeline-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 11px;
-    margin-right: 8px;
-}
-
-.pipeline-badge.pipeline-success {
-    background: #e8f5e9;
-    color: #2e7d32;
-}
-
-.pipeline-badge.pipeline-failed {
-    background: #ffebee;
-    color: #c62828;
-}
-
-.pipeline-badge.pipeline-running {
-    background: #e3f2fd;
-    color: #1976d2;
-}
-
-.pipeline-badge.pipeline-pending {
-    background: #fff3e0;
-    color: #f57c00;
-}
-
-.pipeline-badge.pipeline-unknown {
-    background: #f5f5f5;
-    color: #757575;
-}
-
-/* Empty state improvements */
-.empty-state a {
-    color: #1976d2;
-    text-decoration: underline;
-    cursor: pointer;
-}
-
-.empty-state a:hover {
-    color: #1565c0;
 }
 
 /* Responsive improvements */

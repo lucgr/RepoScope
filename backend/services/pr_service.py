@@ -30,7 +30,8 @@ class PRService:
         for pattern in patterns:
             match = re.match(pattern, branch_name, re.IGNORECASE)
             if match:
-                return match.group(2) if len(match.groups()) > 1 else match.group(1)
+                extracted_name = match.group(2) if len(match.groups()) > 1 else match.group(1)
+                return extracted_name
         
         logger.debug(f"Could not extract task name from branch '{branch_name}'")
         return None
@@ -143,8 +144,13 @@ class PRService:
             
             # Get pipeline statuses in batch if requested
             pipeline_statuses = {}
+            logger.info(f"For repo {project.name}, include_pipeline_status is {include_pipeline_status} and number of merge_requests is {len(merge_requests) if merge_requests else 0}")
             if include_pipeline_status and merge_requests:
+                logger.info(f"Calling get_pipeline_status_batch for {project.name} with {len(merge_requests)} MRs")
                 pipeline_statuses = self.get_pipeline_status_batch(project, merge_requests)
+                logger.info(f"get_pipeline_status_batch for {project.name} returned: {pipeline_statuses}")
+            else:
+                logger.info(f"Skipping get_pipeline_status_batch for {project.name}")
             
             # Process MRs into PRs
             for mr in merge_requests:
@@ -152,6 +158,7 @@ class PRService:
                 
                 # Get pipeline status from batch or set to None
                 pipeline_status = pipeline_statuses.get(mr.iid) if include_pipeline_status else None
+                logger.info(f"For MR {mr.iid} in {project.name}, pipeline_status from batch is: {pipeline_statuses.get(mr.iid)}, final pipeline_status for PR object: {pipeline_status}")
                 
                 # Only get approval details if we have a task name (to reduce unnecessary API calls)
                 approval_details = {"user_has_approved": False, "approvers": []}

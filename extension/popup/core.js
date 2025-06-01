@@ -167,7 +167,7 @@ function initializePopup() {
     // 4. Setup Refresh PRs button
     const refreshPRsBtn = document.getElementById("refresh-prs-btn");
     if (refreshPRsBtn) {
-        refreshPRsBtn.addEventListener("click", loadUnifiedPRs);
+        refreshPRsBtn.addEventListener("click", () => loadUnifiedPRs(false));
     } else {
         console.error("Refresh PRs button not found! #refresh-prs-btn");
     }
@@ -211,7 +211,7 @@ function initializePopup() {
         updateWorkspaceRepoSelection(data.repoUrls || "", searchValue, true);
         
         // Load unified PRs
-        loadUnifiedPRs();
+        loadUnifiedPRs(false);
         
         // Load workspace history
         loadWorkspaceHistory();
@@ -272,7 +272,7 @@ function saveSettings() {
             const searchValue = searchInput ? searchInput.value : "";
             loadRepositoryList(repoUrls.join("\n"), searchValue, true);
             updateWorkspaceRepoSelection(repoUrls.join("\n"), searchValue, true);
-            loadUnifiedPRs();
+            loadUnifiedPRs(false);
             
             // Notify that repositories have been loaded
             dispatchReposLoadedEvent();
