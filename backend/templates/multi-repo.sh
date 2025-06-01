@@ -494,483 +494,346 @@ case "$COMMAND" in
             echo -e "Usage: multi-repo pr \"Your PR title\""
             exit 1
         fi
-        
+
         PR_TITLE=$1
         echo -e "${BLUE}=== Creating pull requests for repositories with changes ===${NC}"
-        
+
         # Get current directory
         CURRENT_DIR=$(pwd)
-        
-        # First, ask for commit message (will use this for both commit and PR description)
-        echo -e "${YELLOW}Enter commit message (will also be used as PR description):${NC}"
-        read -r COMMIT_MESSAGE
-        
-        if [ -z "$COMMIT_MESSAGE" ]; then
-            COMMIT_MESSAGE=$PR_TITLE
-            echo -e "${YELLOW}Using PR title as commit message: ${COMMIT_MESSAGE}${NC}"
+
+        # Prompt for PR Description
+        echo -e "${YELLOW}Enter PR description:${NC}"
+        read -r PR_DESCRIPTION
+        if [ -z "$PR_DESCRIPTION" ]; then
+            echo -e "${RED}Error: PR description cannot be empty.${NC}"
+            exit 1
         fi
-        
-        # Use the commit message as PR description, but allow customization
-        PR_DESCRIPTION=$COMMIT_MESSAGE
-        echo -e "${YELLOW}Enter additional PR description (press Enter to use commit message):${NC}"
-        read -r ADDITIONAL_DESCRIPTION
-        
-        if [ -n "$ADDITIONAL_DESCRIPTION" ]; then
-            PR_DESCRIPTION="${PR_DESCRIPTION}\n\n${ADDITIONAL_DESCRIPTION}"
-        fi
-        
+
+        # Prompt for Target Branch
         echo -e "${YELLOW}Enter target branch (default: main):${NC}"
         read -r TARGET_BRANCH
         TARGET_BRANCH=${TARGET_BRANCH:-main}
-        
-        # Ask for branch name to use for all repositories if needed
-        echo -e "${YELLOW}Enter branch name to use for all repositories (leave empty to use current branch for each repo):${NC}"
-        read -r GLOBAL_BRANCH_NAME
-        
+
         # Flag for GitLab vs GitHub detection
-        IS_GITLAB=true
-        echo -e "${YELLOW}Are you using GitLab? (y/n, default: y):${NC}"
+        IS_GITLAB=false # Default to GitHub
+        echo -e "${YELLOW}Are you using GitLab? (y/n, default: n):${NC}"
         read -r USING_GITLAB
-        if [[ "$USING_GITLAB" =~ ^[Nn]$ ]]; then
-            IS_GITLAB=false
+        if [[ "$USING_GITLAB" =~ ^[Yy]$ ]]; then
+            IS_GITLAB=true
         fi
-        
-        # 1. First commit all changes in all submodules
-        echo -e "${BLUE}=== Step 1: Committing changes in all repositories ===${NC}"
-        
-        # Get list of submodules
+
+        # --- Step 1: Commit and Push Uncommitted Changes ---
+        echo -e "${BLUE}=== Step 1: Committing and pushing uncommitted changes ===${NC}"
         SUBMODULES=$(git config --file .gitmodules --get-regexp path | awk '{ print $2 }')
-        CHANGES_MADE=false
-        
+
         for SUBMODULE in $SUBMODULES; do
-            echo -e "${BLUE}Checking ${YELLOW}$SUBMODULE${NC}"
-            
-            # Check if submodule directory exists
+            echo -e "${BLUE}Processing submodule: ${YELLOW}$SUBMODULE${NC}"
             if [ ! -d "$SUBMODULE" ]; then
                 echo -e "  ${RED}Submodule directory does not exist. Skipping.${NC}"
                 continue
             fi
-            
-            # Navigate to submodule
             cd "$SUBMODULE" || continue
-            
-            # Check for changes
+
+            # Check for uncommitted changes
             if git status --porcelain | grep -q .; then
-                echo -e "  ${GREEN}Changes detected in $SUBMODULE${NC}"
-                
-                # Show changes 
-                git status --short
-                
-                # Check if we're in detached HEAD state
-                if git symbolic-ref -q HEAD >/dev/null; then
-                    # Not in detached HEAD state, get current branch
-                    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-                    echo -e "  ${GREEN}On branch $CURRENT_BRANCH${NC}"
-                else
-                    # We're in detached HEAD state
-                    echo -e "  ${YELLOW}Detached HEAD state detected${NC}"
-                    
-                    # Use global branch name if provided, otherwise extract from PR title
-                    if [ -n "$GLOBAL_BRANCH_NAME" ]; then
-                        BRANCH_NAME=$GLOBAL_BRANCH_NAME
-                    else
-                        # Extract task name from the PR title if possible
-                        TASK_NAME=$(echo "$PR_TITLE" | grep -o '[A-Z]\+-[0-9]\+' | head -1)
-                        if [ -n "$TASK_NAME" ]; then
-                            SUGGESTED_BRANCH="feature/$TASK_NAME"
-                        else
-                            SUGGESTED_BRANCH="feature/$(date +%Y%m%d-%H%M%S)"
-                        fi
-                        
-                        echo -e "  ${YELLOW}No branch name provided. Using branch: $SUGGESTED_BRANCH${NC}"
-                        BRANCH_NAME=$SUGGESTED_BRANCH
-                    fi
-                    
-                    # Check if branch already exists
-                    if git show-ref --verify --quiet refs/heads/$BRANCH_NAME; then
-                        # Branch exists, check it out
-                        git checkout $BRANCH_NAME
-                        echo -e "  ${GREEN}Checked out existing branch: $BRANCH_NAME${NC}"
-                    else
-                        # Create new branch
-                        git checkout -b $BRANCH_NAME
-                        echo -e "  ${GREEN}Created and checked out new branch: $BRANCH_NAME${NC}"
-                    fi
-                    
-                    CURRENT_BRANCH=$BRANCH_NAME
-                fi
-                
-                # If global branch name is provided and different from current branch, switch to it
-                if [ -n "$GLOBAL_BRANCH_NAME" ] && [ "$CURRENT_BRANCH" != "$GLOBAL_BRANCH_NAME" ]; then
-                    # Check if branch exists
-                    if git show-ref --verify --quiet refs/heads/$GLOBAL_BRANCH_NAME; then
-                        # Branch exists, check it out
-                        git checkout $GLOBAL_BRANCH_NAME
-                        echo -e "  ${GREEN}Switched to existing branch: $GLOBAL_BRANCH_NAME${NC}"
-                    else
-                        # Create branch
-                        git checkout -b $GLOBAL_BRANCH_NAME
-                        echo -e "  ${GREEN}Created and checked out new branch: $GLOBAL_BRANCH_NAME${NC}"
-                    fi
-                    CURRENT_BRANCH=$GLOBAL_BRANCH_NAME
-                fi
-                
-                # Add all changes
+                echo -e "  ${GREEN}Uncommitted changes detected.${NC}"
                 git add .
-                
-                # Commit changes
-                git commit -m "$COMMIT_MESSAGE"
-                echo -e "  ${GREEN}Changes committed in $SUBMODULE${NC}"
-                
-                # Push changes
-                echo -e "  ${BLUE}Pushing changes to origin/$CURRENT_BRANCH${NC}"
-                git push origin "$CURRENT_BRANCH"
-                
+                COMMIT_MSG="Automated commit: Pre-PR changes for '$PR_TITLE'"
+                git commit -m "$COMMIT_MSG"
                 if [ $? -eq 0 ]; then
-                    echo -e "  ${GREEN}Changes pushed to remote for $SUBMODULE${NC}"
+                    echo -e "  ${GREEN}Changes committed successfully.${NC}"
                 else
-                    echo -e "  ${RED}Failed to push changes to remote for $SUBMODULE${NC}"
-                    echo -e "  ${YELLOW}You may need to manually push with: git push -u origin $CURRENT_BRANCH${NC}"
-                    echo -e "  ${YELLOW}Skipping PR creation for this repository${NC}"
+                    echo -e "  ${RED}Failed to commit changes. Skipping push and PR for this repo.${NC}"
                     cd "$CURRENT_DIR" || exit
                     continue
                 fi
-                
-                CHANGES_MADE=true
-            else
-                echo -e "  ${YELLOW}No uncommitted changes in $SUBMODULE, checking for unpushed commits${NC}"
-                
-                # Get current branch
-                CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-                
-                # If global branch name is provided and different from current branch, switch to it
-                if [ -n "$GLOBAL_BRANCH_NAME" ] && [ "$CURRENT_BRANCH" != "$GLOBAL_BRANCH_NAME" ]; then
-                    # Check if branch exists
-                    if git show-ref --verify --quiet refs/heads/$GLOBAL_BRANCH_NAME; then
-                        # Branch exists, check it out
-                        git checkout $GLOBAL_BRANCH_NAME
-                        echo -e "  ${GREEN}Switched to existing branch: $GLOBAL_BRANCH_NAME${NC}"
+
+                # Push changes
+                CURRENT_BRANCH_SUBMODULE=$(git rev-parse --abbrev-ref HEAD)
+                echo -e "  ${BLUE}Pushing changes to origin/$CURRENT_BRANCH_SUBMODULE...${NC}"
+                git push origin "$CURRENT_BRANCH_SUBMODULE"
+                if [ $? -eq 0 ]; then
+                    echo -e "  ${GREEN}Changes pushed successfully.${NC}"
+                else
+                    echo -e "  ${RED}Failed to push changes. Attempting to set upstream and push again...${NC}"
+                    git push --set-upstream origin "$CURRENT_BRANCH_SUBMODULE"
+                     if [ $? -eq 0 ]; then
+                        echo -e "  ${GREEN}Changes pushed successfully after setting upstream.${NC}"
                     else
-                        # Create branch
-                        git checkout -b $GLOBAL_BRANCH_NAME
-                        echo -e "  ${GREEN}Created and checked out new branch: $GLOBAL_BRANCH_NAME${NC}"
-                    fi
-                    CURRENT_BRANCH=$GLOBAL_BRANCH_NAME
-                    
-                    # After switching branch, check again for uncommitted changes
-                    if git status --porcelain | grep -q .; then
-                        echo -e "  ${GREEN}Changes detected after switching branch${NC}"
-                        
-                        # Add all changes
-                        git add .
-                        
-                        # Commit changes
-                        git commit -m "$COMMIT_MESSAGE"
-                        echo -e "  ${GREEN}Changes committed in $SUBMODULE${NC}"
-                        
-                        CHANGES_MADE=true
-                    fi
-                fi
-                
-                # Check for unpushed commits in current branch
-                if git log origin/${CURRENT_BRANCH}..${CURRENT_BRANCH} 2>/dev/null | grep -q .; then
-                    echo -e "  ${YELLOW}Found unpushed commits in ${SUBMODULE}. Pushing now...${NC}"
-                    git push origin "$CURRENT_BRANCH"
-                    
-                    if [ $? -eq 0 ]; then
-                        echo -e "  ${GREEN}Changes pushed to remote for $SUBMODULE${NC}"
-                        CHANGES_MADE=true
-                    else
-                        echo -e "  ${RED}Failed to push changes to remote for $SUBMODULE${NC}"
-                        echo -e "  ${YELLOW}Skipping PR creation for this repository${NC}"
+                        echo -e "  ${RED}Still failed to push changes. Skipping PR for this repo.${NC}"
                         cd "$CURRENT_DIR" || exit
                         continue
                     fi
-                else
-                    echo -e "  ${YELLOW}No changes in $SUBMODULE${NC}"
                 fi
+            else
+                echo -e "  ${YELLOW}No uncommitted changes.${NC}"
             fi
-            
-            # Return to main directory
             cd "$CURRENT_DIR" || exit
         done
-        
-        # We're skipping updates to the virtual monorepo as requested
-        if $CHANGES_MADE; then
-            echo -e "${BLUE}=== Changes made in submodules ===${NC}"
-        else
-            echo -e "${YELLOW}No changes detected in any submodules${NC}"
-        fi
-        
-        # 2. Now create PRs for repositories
-        echo -e "${BLUE}=== Step 2: Creating pull requests for each repository ===${NC}"
-        
-        # Build metadata summary for all repos involved (for initial PR description, will be updated later)
-        IFS=' ' read -r -a SUBMODULES_ARRAY <<< "$SUBMODULES"
-        REPO_COUNT=${#SUBMODULES_ARRAY[@]}
-        REPO_SUMMARY="This PR is part of a multi-repo change involving $REPO_COUNT repositories:"
-        for SUBMODULE in "${SUBMODULES_ARRAY[@]}"; do
-            if [ -d "$SUBMODULE" ]; then
-                cd "$SUBMODULE" || continue
-                REMOTE_URL=$(git config --get remote.origin.url)
-                CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-                REPO_SUMMARY+="\n- $SUBMODULE ($REMOTE_URL) branch: $CURRENT_BRANCH"
-                cd "$CURRENT_DIR" || exit
-            fi
-        done
-        
-        # --- First loop: create all PRs/MRs and collect metadata (from main dir only) ---
+
+        # --- Step 2: Create PRs for Repos with Changes ---
+        echo -e "${BLUE}=== Step 2: Creating pull requests ===${NC}"
         PR_METADATA=()
+
         for SUBMODULE in $SUBMODULES; do
-            if [ -d "$SUBMODULE" ]; then
-                # Track if this repo has changes that need a PR
-                HAS_CHANGES=false
-                
-                cd "$SUBMODULE" || continue
-                
-                # Get current branch or use global branch name if specified
-                if [ -n "$GLOBAL_BRANCH_NAME" ]; then
-                    CURRENT_BRANCH=$GLOBAL_BRANCH_NAME
-                    # Make sure we're on the correct branch
-                    if [ "$(git rev-parse --abbrev-ref HEAD)" != "$GLOBAL_BRANCH_NAME" ]; then
-                        if git show-ref --verify --quiet refs/heads/$GLOBAL_BRANCH_NAME; then
-                            git checkout $GLOBAL_BRANCH_NAME;
-                        else
-                            echo -e "  ${RED}Branch $GLOBAL_BRANCH_NAME does not exist, skipping PR creation for $SUBMODULE${NC}"
-                            cd "$CURRENT_DIR" || exit
-                            continue
-                        fi
-                    fi
-                else
-                    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-                fi
-                
-                # Check if branch exists on remote
-                if git ls-remote --heads origin "$CURRENT_BRANCH" | grep -q "$CURRENT_BRANCH"; then
-                    # Check if there are unpushed commits
-                    if git log origin/${CURRENT_BRANCH}..${CURRENT_BRANCH} 2>/dev/null | grep -q .; then
-                        echo -e "  ${GREEN}Found unpushed commits in ${SUBMODULE}${NC}"
-                        HAS_CHANGES=true
-                    else 
-                        # Check if there are changes between local and remote
-                        git fetch origin "$CURRENT_BRANCH"
-                        if ! git diff --quiet origin/"$CURRENT_BRANCH"; then
-                            echo -e "  ${GREEN}Found changes between local and remote in ${SUBMODULE}${NC}"
-                            HAS_CHANGES=true
-                        else
-                            echo -e "  ${YELLOW}No changes detected in ${SUBMODULE}, skipping PR creation${NC}"
-                            cd "$CURRENT_DIR" || exit
-                            continue
-                        fi
-                    fi
-                else
-                    # New branch that doesn't exist on remote yet
-                    echo -e "  ${GREEN}New branch in ${SUBMODULE} that doesn't exist on remote yet${NC}"
-                    HAS_CHANGES=true
-                fi
-                
-                # Return to current directory
-                cd "$CURRENT_DIR" || continue
-                
-                # If no changes were detected, skip PR creation for this repo
-                if ! $HAS_CHANGES; then
-                    echo -e "  ${YELLOW}No changes to push in ${SUBMODULE}, skipping PR creation${NC}"
+            echo -e "${BLUE}Checking for changes to create PR in: ${YELLOW}$SUBMODULE${NC}"
+            if [ ! -d "$SUBMODULE" ]; then
+                echo -e "  ${RED}Submodule directory does not exist. Skipping.${NC}"
+                continue
+            fi
+            cd "$SUBMODULE" || continue
+
+            SOURCE_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+            # Fetch the target branch to ensure we have the latest ref for comparison
+            echo -e "  ${BLUE}Fetching origin/$TARGET_BRANCH...${NC}"
+            git fetch origin "$TARGET_BRANCH" --quiet
+            if [ $? -ne 0 ]; then
+                echo -e "  ${RED}Failed to fetch target branch '$TARGET_BRANCH'. It might not exist on the remote. Skipping PR for this repo.${NC}"
+                cd "$CURRENT_DIR" || exit
+                continue
+            fi
+            
+            # Check for differences between source branch and target branch
+            # We need to compare the local SOURCE_BRANCH with the remote TARGET_BRANCH
+            if git diff --quiet "origin/$TARGET_BRANCH" "$SOURCE_BRANCH"; then
+                echo -e "  ${YELLOW}No differences found between '$SOURCE_BRANCH' and 'origin/$TARGET_BRANCH'. Skipping PR.${NC}"
+                cd "$CURRENT_DIR" || exit
+                continue
+            else
+                echo -e "  ${GREEN}Differences found between '$SOURCE_BRANCH' and 'origin/$TARGET_BRANCH'. Proceeding with PR creation.${NC}"
+            fi
+
+            REMOTE_URL=$(git remote get-url origin)
+            # Determine if GitHub or GitLab based on remote URL more reliably
+            if [[ "$REMOTE_URL" =~ github.com ]]; then
+                EFFECTIVE_IS_GITLAB=false
+            elif [[ "$REMOTE_URL" =~ gitlab ]]; then
+                EFFECTIVE_IS_GITLAB=true
+            else
+                # If neither, use the user's initial choice.
+                EFFECTIVE_IS_GITLAB=$IS_GITLAB
+            fi
+            
+            # Ensure the source branch exists on remote, or push it.
+            if ! git ls-remote --heads origin "$SOURCE_BRANCH" | grep -q "$SOURCE_BRANCH"; then
+                echo -e "  ${YELLOW}Source branch '$SOURCE_BRANCH' does not exist on remote. Pushing now...${NC}"
+                git push origin "$SOURCE_BRANCH"
+                if [ $? -ne 0 ]; then
+                    echo -e "  ${RED}Failed to push source branch '$SOURCE_BRANCH' to remote. Skipping PR for this repo.${NC}"
+                    cd "$CURRENT_DIR" || exit
                     continue
                 fi
-                
-                # Now proceed with PR creation as this repo has changes
-                cd "$SUBMODULE" || continue
-                REMOTE_URL=$(git remote get-url origin)
-                REPO_URL=""
-                IS_GITLAB=false
-                if [[ "$REMOTE_URL" =~ github.com ]]; then
-                    IS_GITLAB=false
-                elif [[ "$REMOTE_URL" =~ gitlab ]]; then
-                    IS_GITLAB=true
-                fi
-                FULL_PR_DESCRIPTION="$PR_DESCRIPTION\n\n---\n(Will be updated with all related PRs after creation)"
-                RESPONSE=""
-                if $IS_GITLAB; then
-                    if [[ "$REMOTE_URL" =~ gitlab.com[/:]([^/]+/[^/.]+) ]]; then
-                        PROJECT_PATH=${BASH_REMATCH[1]}
-                        API_URL="https://gitlab.com/api/v4/projects/$(echo $PROJECT_PATH | sed 's/\//%2F/g')/merge_requests"
-                        if [ -z "$GITLAB_TOKEN" ]; then
-                            echo -e "${YELLOW}Please enter your GitLab personal access token:${NC}"
-                            read -r GITLAB_TOKEN
-                        fi
-                        FULL_DESCRIPTION="$FULL_PR_DESCRIPTION\n\nCreated from multi-repo tool."
-                        RESPONSE=$(curl -s -X POST -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
-                            -H "Content-Type: application/json" \
-                            -d "{\"source_branch\":\"$CURRENT_BRANCH\",\"target_branch\":\"$TARGET_BRANCH\",\"title\":\"$PR_TITLE\",\"description\":\"$FULL_DESCRIPTION\"}" \
-                            "$API_URL")
-                        if echo "$RESPONSE" | grep -q "web_url"; then
-                            MR_URL=$(echo "$RESPONSE" | grep -o '"web_url":"[^"]*"' | sed 's/"web_url":"//;s/"$//' | tr -d '\n' | xargs)
-                            # Ensure the URL is clean and complete (no duplications)
-                            if [[ "$MR_URL" == *"https://"*"https://"* ]]; then
-                                # If URL contains duplication, extract only the proper URL part
-                                CLEAN_URL=$(echo "$MR_URL" | grep -o 'https://[^[:space:]]*merge_requests/[0-9]\+')
-                                PR_METADATA+=("$SUBMODULE|$REMOTE_URL|$CURRENT_BRANCH|$CLEAN_URL")
-                                echo -e "  ${GREEN}GitLab Merge Request created successfully: $CLEAN_URL${NC}"
-                            else
-                                PR_METADATA+=("$SUBMODULE|$REMOTE_URL|$CURRENT_BRANCH|$MR_URL")
-                                echo -e "  ${GREEN}GitLab Merge Request created successfully: $MR_URL${NC}"
+                echo -e "  ${GREEN}Source branch '$SOURCE_BRANCH' pushed to remote successfully.${NC}"
+            fi
+
+
+            FULL_PR_DESCRIPTION="$PR_DESCRIPTION" # Initial description
+            RESPONSE=""
+
+            if $EFFECTIVE_IS_GITLAB; then
+                if [[ "$REMOTE_URL" =~ gitlab.com[/:]([^/]+/[^/.]+) ]]; then
+                    PROJECT_PATH=${BASH_REMATCH[1]} # e.g., lucgr/test-repo or group/subgroup/test-repo
+                    API_URL="https://gitlab.com/api/v4/projects/$(echo $PROJECT_PATH | sed 's#/#%2F#g')/merge_requests"
+                    if [ -z "$GITLAB_TOKEN" ]; then
+                        echo -e "${YELLOW}Please enter your GitLab personal access token (scope: api):${NC}"
+                        read -rs GITLAB_TOKEN # -s for silent input
+                        echo "" # Newline after silent input
+                    fi
+                    JSON_PAYLOAD=$(cat <<EOF
+{
+  "source_branch": "$SOURCE_BRANCH",
+  "target_branch": "$TARGET_BRANCH",
+  "title": "$PR_TITLE",
+  "description": "$FULL_PR_DESCRIPTION"
+}
+EOF
+)
+                    RESPONSE=$(curl -s -X POST -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+                        -H "Content-Type: application/json" \
+                        -d "$JSON_PAYLOAD" \
+                        "$API_URL")
+                    if echo "$RESPONSE" | grep -q "web_url"; then
+                        RAW_MR_URL=$(echo "$RESPONSE" | grep -o '"web_url":"[^"]*"' | sed 's/"web_url":"//;s/"$//' | tr -d '\n' | xargs)
+                        MR_URL=$RAW_MR_URL # Default to raw URL
+
+                        # Check for duplicated https scheme, e.g. https://gitlab.com/userhttps://gitlab.com/user/repo/...
+                        # If found, take the part from the second https:// onwards.
+                        # Count occurrences of 'https://'
+                        SCHEMA_COUNT=$(echo "$RAW_MR_URL" | grep -o "https://" | wc -l)
+
+                        if [ "$SCHEMA_COUNT" -ge 2 ]; then
+                            # Extract the part of the string starting from the second 'https://'
+                            # This uses sed to remove everything up to and including the first 'https://'
+                            # and then prepends 'https://' back to the remainder.
+                            SECOND_PART=$(echo "$RAW_MR_URL" | sed 's#^https://[^/]*/##' ) # Removes first 'https://domain.com/user'
+                            # However, the issue seems to be 'https://domain/user' + 'https://domain/user/repo/...' 
+                            # So we really want to find the *second* 'https://'
+
+                            # Revised approach: find the position of the second 'https://'
+                            # This is tricky in pure bash/sed without more complex tools like awk or perl.
+                            # Let's try a simpler string manipulation if the pattern is consistent:
+                            # https://<host>/<user_or_group>https://<host>/<user_or_group>/<repo>/-/merge_requests/<id>
+                            
+                            # Simplified assumption: the duplication is always the host + user/group part
+                            # Example: https://gitlab.com/lucgrhttps://gitlab.com/lucgr/test-unified-pr-secondary/-/merge_requests/37
+                            # We want to remove the first 'https://gitlab.com/lucgr'
+                            
+                            # More direct approach: if 'https://' appears twice, take everything from the second one.
+                            # This can be done by removing the first part up to the second 'https://'
+                            # Example: remove 'https://gitlab.com/lucgr' from 'https://gitlab.com/lucgrhttps://gitlab.com/lucgr/...' 
+                            # The remainder would be 'https://gitlab.com/lucgr/...' which is what we want.
+
+                            # Let's use a Bash regex to capture the second https part directly if it exists after a first one.
+                            if [[ "$RAW_MR_URL" =~ ^(https://[^/]+/[a-zA-Z0-9_.-]+)(https://.*) ]]; then
+                                # BASH_REMATCH[1] is the first https://host/user_or_group
+                                # BASH_REMATCH[2] is the second https://... part (the actual clean URL)
+                                CORRECTED_URL="${BASH_REMATCH[2]}"
+                                if [ "$CORRECTED_URL" != "$RAW_MR_URL" ] && [[ "$CORRECTED_URL" == https://* ]]; then
+                                     MR_URL="$CORRECTED_URL"
+                                     echo -e "  ${YELLOW}Cleaned malformed GitLab URL. Original: $RAW_MR_URL, Corrected: $MR_URL${NC}"
+                                fi
                             fi
-                        else
-                            echo -e "  ${RED}Failed to create GitLab Merge Request. Response: $RESPONSE${NC}"
                         fi
+                        
+                        PR_METADATA+=("$SUBMODULE|$REMOTE_URL|$SOURCE_BRANCH|$MR_URL")
+                        echo -e "  ${GREEN}GitLab Merge Request created successfully: $MR_URL${NC}"
                     else
-                        echo -e "  ${RED}Could not extract project path from remote URL: $REMOTE_URL${NC}"
+                        echo -e "  ${RED}Failed to create GitLab Merge Request. Response: $RESPONSE${NC}"
                     fi
                 else
-                    if [[ "$REMOTE_URL" =~ github.com[/:]([^/]+)/([^/.]+) ]]; then
-                        OWNER=${BASH_REMATCH[1]}
-                        REPO=${BASH_REMATCH[2]}
-                        API_URL="https://api.github.com/repos/$OWNER/$REPO/pulls"
-                        if [ -z "$GITHUB_TOKEN" ]; then
-                            echo -e "${YELLOW}Please enter your GitHub personal access token:${NC}"
-                            read -r GITHUB_TOKEN
-                        fi
-                        FULL_DESCRIPTION="$FULL_PR_DESCRIPTION\n\nCreated from multi-repo tool."
-                        RESPONSE=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
-                            -H "Accept: application/vnd.github.v3+json" \
-                            -d "{\"head\":\"$CURRENT_BRANCH\",\"base\":\"$TARGET_BRANCH\",\"title\":\"$PR_TITLE\",\"body\":\"$FULL_DESCRIPTION\"}" \
-                            "$API_URL")
-                        if echo "$RESPONSE" | grep -q "html_url"; then
-                            PR_URL=$(echo "$RESPONSE" | grep -o '"html_url":"[^"]*"' | grep "/pull/" | sed 's/"html_url":"//;s/"$//' | tr -d '\n' | xargs)
-                            # Ensure the URL is clean and complete (no duplications)
-                            if [[ "$PR_URL" == *"https://"*"https://"* ]]; then
-                                # If URL contains duplication, extract only the proper URL part
-                                CLEAN_URL=$(echo "$PR_URL" | grep -o 'https://[^[:space:]]*pull/[0-9]\+')
-                                PR_METADATA+=("$SUBMODULE|$REMOTE_URL|$CURRENT_BRANCH|$CLEAN_URL")
-                                echo -e "  ${GREEN}GitHub Pull Request created successfully: $CLEAN_URL${NC}"
-                            else
-                                PR_METADATA+=("$SUBMODULE|$REMOTE_URL|$CURRENT_BRANCH|$PR_URL")
-                                echo -e "  ${GREEN}GitHub Pull Request created successfully: $PR_URL${NC}"
-                            fi
-                        else
-                            echo -e "  ${RED}Failed to create GitHub Pull Request. Response: $RESPONSE${NC}"
-                        fi
-                    else
-                        echo -e "  ${RED}Could not extract owner and repo from remote URL: $REMOTE_URL${NC}"
+                    echo -e "  ${RED}Could not extract project path from GitLab remote URL: $REMOTE_URL${NC}"
+                fi
+            else # GitHub
+                if [[ "$REMOTE_URL" =~ github.com[/:]([^/]+)/([^/.]+) ]]; then
+                    OWNER=${BASH_REMATCH[1]}
+                    REPO_NAME=$(echo "${BASH_REMATCH[2]}" | sed 's/\.git$//') # Remove .git if present
+                    API_URL="https://api.github.com/repos/$OWNER/$REPO_NAME/pulls"
+                    if [ -z "$GITHUB_TOKEN" ]; then
+                        echo -e "${YELLOW}Please enter your GitHub personal access token (scope: repo):${NC}"
+                        read -rs GITHUB_TOKEN # -s for silent input
+                        echo "" # Newline after silent input
                     fi
+                    JSON_PAYLOAD=$(cat <<EOF
+{
+  "head": "$SOURCE_BRANCH",
+  "base": "$TARGET_BRANCH",
+  "title": "$PR_TITLE",
+  "body": "$FULL_PR_DESCRIPTION"
+}
+EOF
+)
+                    RESPONSE=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
+                        -H "Accept: application/vnd.github.v3+json" \
+                        -d "$JSON_PAYLOAD" \
+                        "$API_URL")
+                    if echo "$RESPONSE" | grep -q "html_url"; then
+                        PR_URL=$(echo "$RESPONSE" | grep -o '"html_url":"[^"]*"' | grep "/pull/" | sed 's/"html_url":"//;s/"$//' | tr -d '\n' | xargs)
+                        PR_METADATA+=("$SUBMODULE|$REMOTE_URL|$SOURCE_BRANCH|$PR_URL")
+                        echo -e "  ${GREEN}GitHub Pull Request created successfully: $PR_URL${NC}"
+                    else
+                        echo -e "  ${RED}Failed to create GitHub Pull Request. Owner: '$OWNER', Repo: '$REPO_NAME'. Response: $RESPONSE${NC}"
+                    fi
+                else
+                    echo -e "  ${RED}Could not extract owner and repo from GitHub remote URL: $REMOTE_URL${NC}"
                 fi
             fi
+            cd "$CURRENT_DIR" || exit
         done
-        # --- Second loop: create and push tag, then update all PR/MR descriptions with tag metadata ---
+
+        # --- Step 3: Update PR/MR descriptions with links to other PRs/MRs ---
         if [ ${#PR_METADATA[@]} -gt 0 ]; then
-            REPO_COUNT=${#PR_METADATA[@]}
-            # Clean up any malformed URLs in PR_METADATA before building tag metadata
-            CLEAN_PR_METADATA=()
+            echo -e "${BLUE}=== Step 3: Updating PR/MR descriptions with cross-links ===${NC}"
+            # Build the summary of all created PRs/MRs
+            CROSSLINK_SUMMARY="This change is part of a multi-repo update. Related PRs/MRs:"
             for entry in "${PR_METADATA[@]}"; do
-                IFS='|' read -r SUBMODULE REMOTE_URL BRANCH PR_URL <<< "$entry"
-                # Fix malformed URLs with duplicated domains
-                if [[ "$PR_URL" == *"https://"*"https://"* ]]; then
-                    # Extract everything from the last occurrence of 'https://' onward
-                    CLEAN_URL=$(echo "$PR_URL" | sed 's/.*\(https:\/\/.*\)/\1/')
-                    CLEAN_PR_METADATA+=("$SUBMODULE|$REMOTE_URL|$BRANCH|$CLEAN_URL")
-                    echo -e "${YELLOW}Cleaned malformed URL: $PR_URL -> $CLEAN_URL${NC}"
-                else
-                    CLEAN_PR_METADATA+=("$SUBMODULE|$REMOTE_URL|$BRANCH|$PR_URL")
+                IFS='|' read -r SUBMODULE_NAME _ _ PR_LINK <<< "$entry"
+                CROSSLINK_SUMMARY+="\\n- $SUBMODULE_NAME: $PR_LINK"
+            done
+
+            for entry in "${PR_METADATA[@]}"; do
+                IFS='|' read -r SUBMODULE_NAME REMOTE_URL_ENTRY SOURCE_BRANCH_ENTRY CURRENT_PR_URL <<< "$entry"
+                
+                # Combine original PR_DESCRIPTION with the CROSSLINK_SUMMARY
+                # Ensure PR_DESCRIPTION is first, then the cross-links
+                # UPDATED_DESCRIPTION="$PR_DESCRIPTION\\n\\n$CROSSLINK_SUMMARY" # Old way
+
+                # New way: ensure all newlines are actual newlines before escaping
+                # PR_DESCRIPTION already has actual newlines from read -r
+                # CROSSLINK_SUMMARY has literal \n, so convert them to actual newlines
+                CROSSLINK_SUMMARY_WITH_ACTUAL_NEWLINES=$(echo -e "$CROSSLINK_SUMMARY")
+                DESC_TO_ESCAPE=$(printf "%s\n\n%s" "$PR_DESCRIPTION" "$CROSSLINK_SUMMARY_WITH_ACTUAL_NEWLINES")
+
+                # Need to re-determine if it's GitLab or GitHub for the update API call
+                IS_GITLAB_FOR_UPDATE=false
+                if [[ "$REMOTE_URL_ENTRY" =~ gitlab ]]; then
+                    IS_GITLAB_FOR_UPDATE=true
                 fi
-            done
-            # Replace original array with cleaned version
-            PR_METADATA=("${CLEAN_PR_METADATA[@]}")
-            
-            TAG_NAME="multi-pr-${REPO_COUNT}repos-$(date +%Y%m%d-%H%M%S)"
-            AUTHOR=$(git config user.name)
-            TAG_METADATA="Multi-repo PR by $AUTHOR\nAffected repositories: $REPO_COUNT\n\nRelated PRs:"
-            for entry in "${PR_METADATA[@]}"; do
-                IFS='|' read -r SUBMODULE REMOTE_URL BRANCH PR_URL <<< "$entry"
-                if [ -n "$PR_URL" ]; then
-                    TAG_METADATA+="\n- $SUBMODULE: $PR_URL"
-                else
-                    TAG_METADATA+="\n- $SUBMODULE"
-                fi
-            done
-            TAG_METADATA+="\n\nCreated from multi-repo tool."
-            # Push the tag to all related repos (from main dir, do not cd)
-            for entry in "${PR_METADATA[@]}"; do
-                IFS='|' read -r SUBMODULE REMOTE_URL BRANCH PR_URL <<< "$entry"
-                if [ -d "$SUBMODULE" ]; then
-                    (cd "$SUBMODULE" && git tag -a "$TAG_NAME" -m "$TAG_METADATA" && git push origin "$TAG_NAME")
-                    echo -e "${GREEN}Created and pushed tag $TAG_NAME in $SUBMODULE${NC}"
-                fi
-            done
-            
-            # Properly encode the tag metadata for JSON
-            # First check if jq is available (preferred method)
-            echo -e "${YELLOW}Preparing to update PR/MR descriptions...${NC}"
-            TEMP_FILE=$(mktemp)
-            echo "$TAG_METADATA" > "$TEMP_FILE"
-            
-            if command -v jq &> /dev/null; then
-                echo -e "${GREEN}Using jq for JSON encoding${NC}"
-                TAG_METADATA_JSON=$(jq -Rs . < "$TEMP_FILE")
-            else
-                echo -e "${YELLOW}jq not found, using fallback encoding method${NC}"
-                # Fallback method if jq is not available
-                # Replace newlines with \n, escape quotes, and wrap in quotes
-                TAG_METADATA_JSON=$(printf '%s' "$(cat "$TEMP_FILE" | sed ':a;N;$!ba;s/\n/\\n/g' | sed 's/\"/\\"/g')")
-                TAG_METADATA_JSON="\"$TAG_METADATA_JSON\""
-            fi
-            
-            # Clean up temp file
-            rm -f "$TEMP_FILE"
-            
-            echo -e "${YELLOW}Encoded JSON payload (first 100 chars): ${TAG_METADATA_JSON:0:100}...${NC}"
-            
-            # Debug: Print PR_METADATA array and count before updating PR/MR descriptions
-            echo -e "${YELLOW}DEBUG: PR_METADATA has ${#PR_METADATA[@]} entries:${NC}"
-            for entry in "${PR_METADATA[@]}"; do
-                echo -e "${YELLOW}DEBUG: $entry${NC}"
-            done
-            
-            # Now update every PR/MR with the tag metadata, with debug output
-            for entry in "${PR_METADATA[@]}"; do
-                IFS='|' read -r SUBMODULE REMOTE_URL BRANCH PR_URL <<< "$entry"
-                if [[ "$REMOTE_URL" =~ github.com ]]; then
-                    # GitHub: PATCH the PR body
-                    if [ -n "$GITHUB_TOKEN" ]; then
-                        OWNER=$(echo "$REMOTE_URL" | sed -E 's#.*/([^/]+)/([^/]+)\.git$#\1#')
-                        REPO=$(echo "$REMOTE_URL" | sed -E 's#.*/([^/]+)/([^/]+)\.git$#\2#')
-                        PR_NUMBER=$(echo "$PR_URL" | grep -oE '/pull/[0-9]+' | grep -oE '[0-9]+' | head -1)
-                        if [ -n "$PR_NUMBER" ]; then
-                            PATCH_URL="https://api.github.com/repos/$OWNER/$REPO/pulls/$PR_NUMBER"
-                            echo -e "${YELLOW}PATCHING GitHub PR: $PATCH_URL${NC}"
-                            RESPONSE=$(curl -s -X PATCH -H "Authorization: token $GITHUB_TOKEN" \
-                                -H "Accept: application/vnd.github.v3+json" \
-                                -d "{\"body\":$TAG_METADATA_JSON}" \
-                                "$PATCH_URL")
-                            echo -e "${YELLOW}API Response:${NC} $RESPONSE"
-                        else
-                            echo -e "${RED}ERROR: Could not extract PR number from PR_URL: $PR_URL${NC}"
-                        fi
-                    fi
-                elif [[ "$REMOTE_URL" =~ gitlab ]]; then
-                    # GitLab: PUT the MR description
-                    if [ -n "$GITLAB_TOKEN" ]; then
-                        if [[ "$REMOTE_URL" =~ gitlab.com[/:]([^/]+/[^/.]+) ]]; then
-                            PROJECT_PATH=${BASH_REMATCH[1]}
-                            # Robust MR IID extraction
-                            MR_IID=$(echo "$PR_URL" | grep -oE '/merge_requests/[0-9]+' | grep -oE '[0-9]+' | head -1)
-                            if [ -n "$MR_IID" ]; then
-                                API_URL="https://gitlab.com/api/v4/projects/$(echo $PROJECT_PATH | sed 's/\//%2F/g')/merge_requests/$MR_IID"
-                                echo -e "${YELLOW}PUTTING GitLab MR: $API_URL${NC}"
-                                echo -e "${YELLOW}MR_IID: $MR_IID${NC}"
-                                RESPONSE=$(curl -s -X PUT -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
-                                    -H "Content-Type: application/json" \
-                                    -d "{\"description\":$TAG_METADATA_JSON}" \
-                                    "$API_URL")
-                                echo -e "${YELLOW}API Response:${NC} $RESPONSE"
+
+                if $IS_GITLAB_FOR_UPDATE; then
+                    if [[ "$REMOTE_URL_ENTRY" =~ gitlab.com[/:]([^/]+/[^/.]+) ]]; then
+                        PROJECT_PATH=${BASH_REMATCH[1]}
+                        MR_IID=$(echo "$CURRENT_PR_URL" | grep -oE '/merge_requests/[0-9]+' | grep -oE '[0-9]+' | head -1)
+                        if [ -n "$MR_IID" ]; then
+                            API_URL_UPDATE="https://gitlab.com/api/v4/projects/$(echo $PROJECT_PATH | sed 's#/#%2F#g')/merge_requests/$MR_IID"
+                            if [ -z "$GITLAB_TOKEN" ]; then
+                                echo -e "${YELLOW}GitLab token not found for updating MR. Please enter your GitLab personal access token (scope: api):${NC}"
+                                read -rs GITLAB_TOKEN
+                                echo ""
+                            fi
+                            # Properly escape the description for JSON
+                            # 1. Escape backslashes, 2. Escape double quotes, 3. Convert actual newlines to \n
+                            ESCAPED_UPDATED_DESCRIPTION=$(printf "%s" "$DESC_TO_ESCAPE" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e ':a;N;$!ba;s/\n/\\n/g')
+                            JSON_PAYLOAD_UPDATE="{\"description\": \"$ESCAPED_UPDATED_DESCRIPTION\"}"
+
+                            RESPONSE_UPDATE=$(curl -s -X PUT -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+                                -H "Content-Type: application/json" \
+                                -d "$JSON_PAYLOAD_UPDATE" \
+                                "$API_URL_UPDATE")
+                            if echo "$RESPONSE_UPDATE" | grep -q "web_url"; then
+                                echo -e "  ${GREEN}Updated GitLab MR description for $SUBMODULE_NAME: $CURRENT_PR_URL${NC}"
                             else
-                                echo -e "${RED}ERROR: Could not extract MR_IID from PR_URL: $PR_URL${NC}"
+                                echo -e "  ${RED}Failed to update GitLab MR description for $SUBMODULE_NAME. URL: $API_URL_UPDATE, Payload: $JSON_PAYLOAD_UPDATE, Response: $RESPONSE_UPDATE${NC}"
                             fi
                         else
-                            echo -e "${RED}ERROR: Could not extract PROJECT_PATH from REMOTE_URL: $REMOTE_URL${NC}"
+                             echo -e "  ${RED}Could not extract MR IID for update from URL: $CURRENT_PR_URL${NC}"
+                        fi
+                    fi
+                else # GitHub
+                    if [[ "$REMOTE_URL_ENTRY" =~ github.com[/:]([^/]+)/([^/.]+) ]]; then
+                        OWNER=${BASH_REMATCH[1]}
+                        REPO_NAME_GH=$(echo "${BASH_REMATCH[2]}" | sed 's/\.git$//')
+                        PR_NUMBER=$(echo "$CURRENT_PR_URL" | grep -oE '/pull/[0-9]+' | grep -oE '[0-9]+' | head -1)
+                        if [ -n "$PR_NUMBER" ]; then
+                            API_URL_UPDATE="https://api.github.com/repos/$OWNER/$REPO_NAME_GH/pulls/$PR_NUMBER"
+                            if [ -z "$GITHUB_TOKEN" ]; then
+                                echo -e "${YELLOW}GitHub token not found for updating PR. Please enter your GitHub personal access token (scope: repo):${NC}"
+                                read -rs GITHUB_TOKEN
+                                echo ""
+                            fi
+                            # Properly escape the description for JSON
+                            # 1. Escape backslashes, 2. Escape double quotes, 3. Convert actual newlines to \n
+                            ESCAPED_UPDATED_DESCRIPTION=$(printf "%s" "$DESC_TO_ESCAPE" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e ':a;N;$!ba;s/\n/\\n/g')
+                            JSON_PAYLOAD_UPDATE="{\"body\": \"$ESCAPED_UPDATED_DESCRIPTION\"}"
+
+                            RESPONSE_UPDATE=$(curl -s -X PATCH -H "Authorization: token $GITHUB_TOKEN" \
+                                -H "Accept: application/vnd.github.v3+json" \
+                                -d "$JSON_PAYLOAD_UPDATE" \
+                                "$API_URL_UPDATE")
+                            if echo "$RESPONSE_UPDATE" | grep -q "html_url"; then
+                                echo -e "  ${GREEN}Updated GitHub PR description for $SUBMODULE_NAME: $CURRENT_PR_URL${NC}"
+                            else
+                                echo -e "  ${RED}Failed to update GitHub PR description for $SUBMODULE_NAME. URL: $API_URL_UPDATE, Payload: $JSON_PAYLOAD_UPDATE, Response: $RESPONSE_UPDATE${NC}"
+                            fi
+                        else
+                            echo -e "  ${RED}Could not extract PR number for update from URL: $CURRENT_PR_URL${NC}"
                         fi
                     fi
                 fi
             done
+            echo -e "${GREEN}=== PR creation and update process completed ===${NC}"
+        elif [ ${#PR_METADATA[@]} -eq 0 ]; then
+             echo -e "${YELLOW}No PRs were created as no repositories had relevant changes.${NC}"
         fi
         ;;
         

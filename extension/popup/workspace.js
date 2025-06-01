@@ -15,18 +15,23 @@ function extractTaskFromBranch() {
     }
     
     // Extract task ID using patterns
-    // Example: feature/ABC-123 -> ABC-123
     const patterns = [
-        /^(feature|bug|bugfix|hotfix|fix|chore|task)\/([A-Z]+-\d+)/i, // JIRA-style with prefix
-        /^([A-Z]+-\d+)/i,                                          // Just JIRA-style
-        /^(feature|bug|bugfix|hotfix|fix|chore|task)\/(\d+)/i      // Numeric ID with prefix
+        // New general pattern to match backend
+        /^([a-zA-Z_\-]+)\/([a-zA-Z0-9_\-]+)/i, 
+        // JIRA-style with prefix
+        /^(feature|bug|bugfix|hotfix|fix|chore|task)\/([A-Z]+-\d+)/i, 
+        // Just JIRA-style
+        /^([A-Z]+-\d+)/i,                                          
+        // Numeric ID with prefix
+        /^(feature|bug|bugfix|hotfix|fix|chore|task)\/(\d+)/i      
     ];
     
     for (const pattern of patterns) {
         const match = branchName.match(pattern);
         if (match) {
             // Use the second group if it exists (task ID), otherwise first group
-            taskInput.value = match[2] || match[1];
+            let taskName = match[2] || match[1];
+            taskInput.value = taskName.toUpperCase(); // Standardize to uppercase
             return;
         }
     }

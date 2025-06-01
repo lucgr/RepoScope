@@ -22,16 +22,25 @@ class PRService:
         """Extract task name from branch name using common patterns."""
         # TODO: Make this more robust and configurable.
         patterns = [
-            r'^(feature|bug|bugfix|hotfix|fix|chore|task)/([A-Z]+-\d+)', # JIRA-style with more prefixes (e.g., feature/ABC-123)
-            r'^(feature|bug|bugfix|hotfix|fix|chore|task)/(\d+)', # Numeric with more prefixes (e.g., feature/123)
-            r'^([A-Z]+-\d+)', # Just ticket number (e.g., ABC-123)
+            # New general pattern: any_string/any_string_with_numbers_and_hyphens
+            r'^([a-zA-Z_\\-]+)/([a-zA-Z0-9_\\-]+)', 
+            # JIRA-style with more prefixes (e.g., feature/ABC-123)
+            r'^(feature|bug|bugfix|hotfix|fix|chore|task)/([A-Z]+-\\d+)', 
+             # Numeric with more prefixes (e.g., feature/123)
+            r'^(feature|bug|bugfix|hotfix|fix|chore|task)/(\\d+)',
+            # Just ticket number (e.g., ABC-123)
+            r'^([A-Z]+-\\d+)',
         ]
         
         for pattern in patterns:
             match = re.match(pattern, branch_name, re.IGNORECASE)
             if match:
+                # If the pattern has two groups, the task name is typically the second one.
+                # Example: "feature/TASK-123", group(1)="feature", group(2)="TASK-123"
+                # Example: "my-feature/some-task-456", group(1)="my-feature", group(2)="some-task-456"
+                # If only one group (like just a ticket number), that's the task name.
                 extracted_name = match.group(2) if len(match.groups()) > 1 else match.group(1)
-                return extracted_name
+                return extracted_name.upper() # Standardize to uppercase
         
         logger.debug(f"Could not extract task name from branch '{branch_name}'")
         return None
@@ -228,40 +237,72 @@ class PRService:
         return all_prs
 
     def unify_prs(self, prs: List[PR], include_single_pr_tasks: bool = False) -> List[UnifiedPR]:
-        """Group PRs by task name and create unified views."""
-        task_groups: Dict[str, List[PR]] = {}
-        
-        # Group PRs by task name
+        """Unify PRs by task name and then by identical branch names for unmatched PRs."""
+        unified_prs_map: Dict[str, List[PR]] = {}
+        prs_without_task_name: List[PR] = []
+
         for pr in prs:
             if pr.task_name:
-                if pr.task_name not in task_groups:
-                    task_groups[pr.task_name] = []
-                task_groups[pr.task_name].append(pr)
-        
-        # Create unified PR views
-        unified_prs = []
-        for task_name, grouped_prs in task_groups.items():
-            # For full loads, include all tasks; for fast loads, only multi-PR tasks
-            if include_single_pr_tasks or len(grouped_prs) > 1:
-                # Determine overall status
-                status = 'open'
-                if all(pr.state == 'merged' for pr in grouped_prs):
-                    status = 'merged'
-                elif all(pr.state == 'closed' for pr in grouped_prs):
-                    status = 'closed'
+                if pr.task_name not in unified_prs_map:
+                    unified_prs_map[pr.task_name] = []
+                unified_prs_map[pr.task_name].append(pr)
+            else:
+                prs_without_task_name.append(pr)
+
+        unified_prs_list = []
+        for task_name, task_prs in unified_prs_map.items():
+            if include_single_pr_tasks or len(task_prs) > 1:
+                total_changes = sum(getattr(pr_item, 'changes_count', 0) for pr_item in task_prs)
+                total_comments = sum(getattr(pr_item, 'comments_count', 0) for pr_item in task_prs)
                 
-                # Calculates total changes and comments
-                total_changes = sum(getattr(pr, 'changes_count', 0) for pr in grouped_prs)
-                total_comments = sum(getattr(pr, 'comments_count', 0) for pr in grouped_prs)
+                current_status = 'open' # Default status
+                if all(pr_item.state == 'merged' for pr_item in task_prs):
+                    current_status = 'merged'
+                elif all(pr_item.state == 'closed' for pr_item in task_prs): # Check if all are closed (and not all merged)
+                    current_status = 'closed'
                 
-                unified_pr = UnifiedPR(
-                    task_name=task_name,
-                    prs=grouped_prs,
+                unified_prs_list.append(UnifiedPR(
+                    task_name=task_name, 
+                    prs=task_prs,
                     total_changes=total_changes,
                     total_comments=total_comments,
-                    status=status
-                )
-                unified_prs.append(unified_pr)
+                    status=current_status
+                ))
         
-        logger.info(f"Created {len(unified_prs)} unified PR views (include_single: {include_single_pr_tasks})")
-        return unified_prs
+        unified_prs_list.sort(key=lambda x: x.task_name)
+
+        branch_matched_prs_map: Dict[str, List[PR]] = {}
+        for pr in prs_without_task_name:
+            if self.extract_task_name(pr.source_branch) is None:
+                branch_key = pr.source_branch 
+                if branch_key not in branch_matched_prs_map:
+                    branch_matched_prs_map[branch_key] = []
+                branch_matched_prs_map[branch_key].append(pr)
+
+        branch_unified_prs_list = []
+        for branch_name_key, branch_prs_group in branch_matched_prs_map.items():
+            if len(branch_prs_group) > 1: 
+                display_task_name = f"Branch: {branch_name_key}"
+                total_changes = sum(getattr(pr_item, 'changes_count', 0) for pr_item in branch_prs_group)
+                total_comments = sum(getattr(pr_item, 'comments_count', 0) for pr_item in branch_prs_group)
+
+                current_status = 'open' # Default status
+                if all(pr_item.state == 'merged' for pr_item in branch_prs_group):
+                    current_status = 'merged'
+                elif all(pr_item.state == 'closed' for pr_item in branch_prs_group):
+                    current_status = 'closed'
+
+                branch_unified_prs_list.append(UnifiedPR(
+                    task_name=display_task_name, 
+                    prs=branch_prs_group,
+                    total_changes=total_changes,
+                    total_comments=total_comments,
+                    status=current_status
+                ))
+        
+        branch_unified_prs_list.sort(key=lambda x: x.task_name)
+        
+        final_unified_prs = unified_prs_list + branch_unified_prs_list
+        
+        logger.info(f"Unified {len(prs)} PRs into {len(final_unified_prs)} tasks/groups. Task-based: {len(unified_prs_list)}, Branch-based: {len(branch_unified_prs_list)}")
+        return final_unified_prs

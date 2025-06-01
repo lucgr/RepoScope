@@ -128,15 +128,22 @@ if (document.readyState === "loading") {
 // TODO: Make this more robust and configurable. Make sure it matches the backend's task name format.
 function extractTaskName(branchName) {
     const patterns = [
-        /^(feature|bug|bugfix|hotfix|fix|chore|task)\/([A-Z]+-\d+)/i, // JIRA-style with more prefixes
-        /^(feature|bug|bugfix|hotfix|fix|chore|task)\/(\d+)/i, // Numeric with more prefixes
-        /^([A-Z]+-\d+)/ // Just ticket number
+        // New general pattern to match backend
+        /^([a-zA-Z_\-]+)\/([a-zA-Z0-9_\-]+)/i, 
+        // JIRA-style with more prefixes
+        /^(feature|bug|bugfix|hotfix|fix|chore|task)\/([A-Z]+-\d+)/i, 
+        // Numeric with more prefixes
+        /^(feature|bug|bugfix|hotfix|fix|chore|task)\/(\d+)/i, 
+        // Just ticket number
+        /^([A-Z]+-\d+)/ 
     ];
     
     for (const pattern of patterns) {
         const match = branchName.match(pattern);
         if (match) {
-            return match[2] || match[1];
+            // Prioritize the second group (task identifier) if it exists
+            let taskName = match[2] || match[1];
+            return taskName.toUpperCase(); // Standardize to uppercase
         }
     }
     return null;
