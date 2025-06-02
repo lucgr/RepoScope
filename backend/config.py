@@ -47,13 +47,9 @@ def get_gitlab_client(token: str) -> gitlab.Gitlab:
             )
 
             try:
-                logger.info("Running gl.auth() as secondary verification...")
                 user = client.auth()
                 if user is not None:
                     logger.info(f"PyGitlab auth successful. Username: {user.username}")
-                else:
-                    logger.warning("PyGitlab auth() returned None, but direct API check was successful.")
-                    logger.info(f"Using username from direct API call: {username}")
                 
                 logger.info("GitLab client successfully initialized and authenticated!")
                 return client
@@ -75,14 +71,3 @@ def get_gitlab_client(token: str) -> gitlab.Gitlab:
     except Exception as e:
         logger.error(f"Unexpected error during GitLab client initialization: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to initialize GitLab client: {str(e)}")
-
-# Remove old global initialization logic
-# logger.info("Old GitLab client initialization logic removed.")
-# GITLAB_TOKEN environment variable is no longer automatically loaded here for client setup.
-# The expectation is that the token will be passed to get_gitlab_client.
-# The .env file might still be used for GITLAB_URL or other configurations by load_dotenv().
-
-# Example of how it might be used elsewhere (dependency injection in FastAPI):
-# from fastapi import Header, Depends
-# async def get_current_gitlab_client(x_gitlab_token: str = Header(...)):
-#     return get_gitlab_client(x_gitlab_token)

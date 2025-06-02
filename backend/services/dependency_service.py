@@ -51,9 +51,6 @@ class DependencyService:
         unique_id = str(uuid.uuid4())[:8]
         repo_dir = os.path.join(self.temp_dir, f"{repo_name}_{unique_id}")
         
-        # Don't try to clean existing directory - use a unique path instead
-        # This helps avoid Windows file locking issues
-        
         # Add authentication to URL if needed
         authenticated_repo_url = repo_url
         if gitlab_token and "gitlab.com" in repo_url:
@@ -105,8 +102,7 @@ class DependencyService:
                     if not line or line.startswith('#'):
                         continue
                     
-                    # Extract package and version
-                    # Handles formats like: package==1.0.0, package>=1.0.0, package~=1.0.0
+                    # Extract package and version. Handles formats like: package==1.0.0, package>=1.0.0, package~=1.0.0
                     match = re.match(r'^([a-zA-Z0-9_.-]+)([~=<>]=?)([a-zA-Z0-9_.-]+)', line)
                     if match:
                         package, operator, version = match.groups()
@@ -166,7 +162,7 @@ class DependencyService:
                         module, version = req_match.groups()
                         dependencies[module.lower()] = version.strip()
                 
-                # Also check for replace directives
+                # Also check for replace directives. TODO: need to check this
                 replace_block = re.search(r'replace\s*\((.*?)\)', content, re.DOTALL)
                 if replace_block:
                     replaces = replace_block.group(1)
@@ -234,7 +230,6 @@ class DependencyService:
                 
                 try:
                     success, result = self._clone_repo(repo_url, repo_name, gitlab_token, branch)
-                    
                     if not success:
                         clone_errors.append(f"{repo_name}{branch_display}: {result}")
                         continue
@@ -257,14 +252,14 @@ class DependencyService:
                     clone_errors.append(f"{repo_name}{branch_display}: {str(e)}")
                     logger.error(f"Error processing repository {repo_name}{branch_display}: {str(e)}", exc_info=True)
             
-            # If we couldn't clone any repositories, return error
+            # If cloning repositories failed, return error
             if len(repo_dependencies) == 0:
                 return {
                     "status": "error", 
                     "message": f"Failed to process any repositories: {'; '.join(clone_errors)}"
                 }
                 
-            # If we have only one repository, no mismatches to check
+            # If only one repository, no mismatches to check
             if len(repo_dependencies) < 2:
                 return {
                     "status": "success",
@@ -295,17 +290,15 @@ class DependencyService:
             return result
             
         finally:
-            # Clean up temporary directories with improved Windows handling
+            # Clean up temporary directories
             self._cleanup_temp_dirs(temp_dirs)
             
     def _cleanup_temp_dirs(self, temp_dirs: List[str]) -> None:
-        """Clean up temporary directories with better Windows handling."""
+        """Clean up temporary directories"""
         import time
         for temp_dir in temp_dirs:
             try:
                 if os.path.exists(temp_dir):
-                    # On Windows, give a short delay to allow file handles to be released
-                    # and try multiple times if needed
                     max_retries = 3
                     for attempt in range(max_retries):
                         try:
@@ -363,13 +356,8 @@ class DependencyService:
             pass  # Ignore errors
 
     def _find_mismatches(self, repo_deps: List[Tuple[str, Dict[str, str]]]) -> Dict[str, Dict[str, List[str]]]:
-        """Find dependency version mismatches across repositories.
-        
-        Args:
-            repo_deps: List of tuples (repo_name, dependencies_dict)
-            
-        Returns:
-            Dictionary of dependency mismatches
+        """Find dependency version mismatches across repositories. 
+        Returns a dictionary of dependency mismatches
         """
         # First, collect all unique dependencies across repos
         all_dependencies = set()

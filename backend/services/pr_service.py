@@ -22,7 +22,7 @@ class PRService:
         """Extract task name from branch name using common patterns."""
         # TODO: Make this more robust and configurable.
         patterns = [
-            # New general pattern: any_string/any_string_with_numbers_and_hyphens
+            # General pattern: any_string/any_string_with_numbers_and_hyphens
             r'^([a-zA-Z_\\-]+)/([a-zA-Z0-9_\\-]+)', 
             # JIRA-style with more prefixes (e.g., feature/ABC-123)
             r'^(feature|bug|bugfix|hotfix|fix|chore|task)/([A-Z]+-\\d+)', 
@@ -35,10 +35,6 @@ class PRService:
         for pattern in patterns:
             match = re.match(pattern, branch_name, re.IGNORECASE)
             if match:
-                # If the pattern has two groups, the task name is typically the second one.
-                # Example: "feature/TASK-123", group(1)="feature", group(2)="TASK-123"
-                # Example: "my-feature/some-task-456", group(1)="my-feature", group(2)="some-task-456"
-                # If only one group (like just a ticket number), that's the task name.
                 extracted_name = match.group(2) if len(match.groups()) > 1 else match.group(1)
                 return extracted_name.upper() # Standardize to uppercase
         
@@ -91,8 +87,6 @@ class PRService:
         try:
             # Get the approval data - this returns the full detailed approval information
             logger.debug(f"Getting approvals for MR {mr_object.iid}")
-            
-            # Directly access the approvals endpoint for more reliable data
             project_id = mr_object.project_id
             mr_iid = mr_object.iid
             
@@ -123,7 +117,7 @@ class PRService:
                            limit: int = 30, 
                            include_pipeline_status: bool = True,
                            recent_only: bool = True) -> List[PR]:
-        """Helper function to fetch PRs for a single repository with smart limits."""
+        """Helper function to fetch PRs for a single repository with smarter limits."""
         repo_prs = []
         try:
             logger.debug(f"Fetching PRs for repository: {repo_url} (limit: {limit})")
@@ -146,7 +140,7 @@ class PRService:
             # Fetch limited set of MRs
             merge_requests = project.mergerequests.list(**query_params)
             
-            # Limit to exactly what we need
+            # Limit to exactly what is needed
             merge_requests = merge_requests[:limit]
             
             logger.info(f"Fetched {len(merge_requests)} MRs from {repo_url}")
@@ -169,7 +163,7 @@ class PRService:
                 pipeline_status = pipeline_statuses.get(mr.iid) if include_pipeline_status else None
                 logger.info(f"For MR {mr.iid} in {project.name}, pipeline_status from batch is: {pipeline_statuses.get(mr.iid)}, final pipeline_status for PR object: {pipeline_status}")
                 
-                # Only get approval details if we have a task name (to reduce unnecessary API calls)
+                # Only get approval details if we have a task name to reduce unnecessary API calls
                 approval_details = {"user_has_approved": False, "approvers": []}
                 if task_name:  # Only fetch approval details for PRs that belong to tasks
                     approval_details = self.get_pr_approval_details(mr)
@@ -207,8 +201,8 @@ class PRService:
                   recent_only: bool = True) -> List[PR]:
         """Fetch PRs from multiple GitLab repositories concurrently with smart limits."""
         all_prs = []
-        # Limit concurrent requests to avoid overwhelming GitLab API
-        max_workers = min(len(repo_urls), 8)
+        # Limit concurrent requests
+        max_workers = min(len(repo_urls), 10) # TODO: maybe test out different values here
         
         logger.info(f"Fetching PRs from {len(repo_urls)} repositories with {max_workers} workers")
         

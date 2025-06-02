@@ -93,8 +93,6 @@ function initDependenciesTab() {
             container.appendChild(repoContainer);
             repoSelection.appendChild(container);
         });
-        
-        console.log("Added repository checkboxes:", repoUrls.length);
     });
     
     // Add event listener to the check dependencies button
@@ -147,12 +145,12 @@ function initDependenciesTab() {
                 repo_urls: selectedRepos
             };
             
-            // Only include repo_branches if we have any branches specified
+            // Only include repo_branches if branches are specified
             if (Object.keys(repoBranches).length > 0) {
                 payload.repo_branches = repoBranches;
             }
             
-            // Call the backend API
+            // Call the backend API for the dependency check
             fetch(`${backendUrl}/api/dependencies/check`, {
                 method: "POST",
                 headers: {
@@ -182,7 +180,7 @@ function initDependenciesTab() {
                     displayMessagesAndWarnings(data, dependenciesResults);
                 }
                 
-                // Process Python mismatches
+                // Process python mismatches
                 const pythonMismatches = data.python_mismatches || {};
                 if (Object.keys(pythonMismatches).length === 0) {
                     pythonMismatchesContent.innerHTML = "";

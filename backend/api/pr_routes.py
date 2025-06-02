@@ -54,7 +54,7 @@ async def get_unified_prs(
         )
         logger.info(f"Successfully fetched {len(prs)} PRs from repositories")
         
-        # For full loads, include all tasks (even single-PR tasks)
+        # For full loads, include all tasks (even single-PR tasks), TODO: remove single PR functionality
         unified_prs = pr_service.unify_prs(prs, include_single_pr_tasks=full_load)
         logger.info(f"Created {len(unified_prs)} unified PR views")
         
@@ -68,7 +68,7 @@ async def get_unified_prs_fast(
     repo_urls: List[str] = Query(..., description="List of repository URLs to fetch PRs from"),
     pr_service: PRService = Depends(get_pr_service)
 ):
-    """Ultra-fast endpoint for initial load - minimal data, recent PRs only."""
+    """Faster endpoint for initial load - minimal data, recent PRs only."""
     try:
         logger.info(f"Fast fetching unified PRs for {len(repo_urls)} repositories")
         

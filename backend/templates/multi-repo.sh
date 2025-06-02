@@ -10,7 +10,7 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo "multi-repo.sh version: 2025-05-15"
+echo "multi-repo.sh version: 2025-06-01"
 
 # Display help information
 function show_help {
@@ -514,7 +514,7 @@ case "$COMMAND" in
         read -r TARGET_BRANCH
         TARGET_BRANCH=${TARGET_BRANCH:-main}
 
-        # Flag for GitLab vs GitHub detection
+        # Flag for GitLab vs GitHub detection, for now only GitLab is supported
         IS_GITLAB=false # Default to GitHub
         echo -e "${YELLOW}Are you using GitLab? (y/n, default: n):${NC}"
         read -r USING_GITLAB
@@ -663,31 +663,8 @@ EOF
                         SCHEMA_COUNT=$(echo "$RAW_MR_URL" | grep -o "https://" | wc -l)
 
                         if [ "$SCHEMA_COUNT" -ge 2 ]; then
-                            # Extract the part of the string starting from the second 'https://'
-                            # This uses sed to remove everything up to and including the first 'https://'
-                            # and then prepends 'https://' back to the remainder.
-                            SECOND_PART=$(echo "$RAW_MR_URL" | sed 's#^https://[^/]*/##' ) # Removes first 'https://domain.com/user'
-                            # However, the issue seems to be 'https://domain/user' + 'https://domain/user/repo/...' 
-                            # So we really want to find the *second* 'https://'
-
-                            # Revised approach: find the position of the second 'https://'
-                            # This is tricky in pure bash/sed without more complex tools like awk or perl.
-                            # Let's try a simpler string manipulation if the pattern is consistent:
-                            # https://<host>/<user_or_group>https://<host>/<user_or_group>/<repo>/-/merge_requests/<id>
-                            
-                            # Simplified assumption: the duplication is always the host + user/group part
-                            # Example: https://gitlab.com/lucgrhttps://gitlab.com/lucgr/test-unified-pr-secondary/-/merge_requests/37
-                            # We want to remove the first 'https://gitlab.com/lucgr'
-                            
-                            # More direct approach: if 'https://' appears twice, take everything from the second one.
-                            # This can be done by removing the first part up to the second 'https://'
-                            # Example: remove 'https://gitlab.com/lucgr' from 'https://gitlab.com/lucgrhttps://gitlab.com/lucgr/...' 
-                            # The remainder would be 'https://gitlab.com/lucgr/...' which is what we want.
-
-                            # Let's use a Bash regex to capture the second https part directly if it exists after a first one.
+                            SECOND_PART=$(echo "$RAW_MR_URL" | sed 's#^https://[^/]*/##' ) 
                             if [[ "$RAW_MR_URL" =~ ^(https://[^/]+/[a-zA-Z0-9_.-]+)(https://.*) ]]; then
-                                # BASH_REMATCH[1] is the first https://host/user_or_group
-                                # BASH_REMATCH[2] is the second https://... part (the actual clean URL)
                                 CORRECTED_URL="${BASH_REMATCH[2]}"
                                 if [ "$CORRECTED_URL" != "$RAW_MR_URL" ] && [[ "$CORRECTED_URL" == https://* ]]; then
                                      MR_URL="$CORRECTED_URL"
@@ -756,11 +733,6 @@ EOF
                 
                 # Combine original PR_DESCRIPTION with the CROSSLINK_SUMMARY
                 # Ensure PR_DESCRIPTION is first, then the cross-links
-                # UPDATED_DESCRIPTION="$PR_DESCRIPTION\\n\\n$CROSSLINK_SUMMARY" # Old way
-
-                # New way: ensure all newlines are actual newlines before escaping
-                # PR_DESCRIPTION already has actual newlines from read -r
-                # CROSSLINK_SUMMARY has literal \n, so convert them to actual newlines
                 CROSSLINK_SUMMARY_WITH_ACTUAL_NEWLINES=$(echo -e "$CROSSLINK_SUMMARY")
                 DESC_TO_ESCAPE=$(printf "%s\n\n%s" "$PR_DESCRIPTION" "$CROSSLINK_SUMMARY_WITH_ACTUAL_NEWLINES")
 

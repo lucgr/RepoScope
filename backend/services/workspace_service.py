@@ -8,7 +8,6 @@ from typing import List, Tuple, Dict, Any
 from urllib.parse import urlparse, urlunparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
-# from ..models.pr import VirtualWorkspaceResponse # This model might not be directly returned by this method anymore for success cases
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +16,11 @@ class WorkspaceService:
 
     def __init__(self, workspace_root: str = None):
         """Initialize the workspace service.
-            - workspace_root: Root directory for storing virtual workspaces
+        
+        workspace_root: Root directory for storing virtual workspaces
         """
         self.workspace_root = workspace_root or os.path.join(tempfile.gettempdir(), "virtual_workspaces")
         os.makedirs(self.workspace_root, exist_ok=True)
-        logger.info(f"Workspace root initialized at: {self.workspace_root}")
     
     def _run_git_command(self, cmd: List[str], cwd: str = None) -> Tuple[bool, str]:
         """Run a git command and return the result."""
@@ -51,7 +50,7 @@ class WorkspaceService:
             return False, error_msg
     
     def _add_submodule_parallel(self, repo_url: str, workspace_dir: str, gitlab_token: str = None) -> Tuple[bool, str, str]:
-        """Add a single submodule in a thread-safe manner with optimizations."""
+        """Add a single submodule with optimizations."""
         repo_name_from_url = repo_url.split("/")[-1].replace(".git", "")
         authenticated_repo_url = repo_url
         
@@ -68,7 +67,7 @@ class WorkspaceService:
         else:
             logger.info(f"Adding submodule {repo_name_from_url} from {repo_url} (fast shallow clone)...")
 
-        # Fast approach: Direct shallow clone then register as submodule
+        # Direct shallow clone then register as submodule
         submodule_path = os.path.join(workspace_dir, repo_name_from_url)
         
         # Step 1: Fast shallow clone directly
@@ -108,8 +107,7 @@ class WorkspaceService:
             # Step 3: Stage the submodule
             self._run_git_command(["git", "add", repo_name_from_url], cwd=workspace_dir)
             self._run_git_command(["git", "add", ".gitmodules"], cwd=workspace_dir)
-            
-            logger.info(f"Successfully added fast submodule {repo_name_from_url}")
+
             return True, "Fast submodule addition successful", repo_name_from_url
             
         except Exception as e:
@@ -120,7 +118,7 @@ class WorkspaceService:
                                  workspace_name: str = None, script_content: str = None, 
                                  gitlab_token: str = None) -> Dict[str, Any]:
         """Create a virtual workspace by aggregating multiple repositories as submodules.
-        Uses shallow clones (--depth 1) for submodules. Submodule additions are parallel.
+        Uses shallow clones (--depth 1) for submodules, added in parallel.
         Returns a dictionary with operation status and relevant paths/names.
         """
         start_time = time.time()
@@ -134,14 +132,11 @@ class WorkspaceService:
             safe_name = task_name.replace('/', '_').replace(' ', '_')
         
         # Add a timestamp to create a unique directory for each attempt
-        # This helps avoid conflicts with locked files from previous attempts
         unique_suffix = str(int(time.time()))
         unique_safe_name = f"{safe_name}_{unique_suffix}"
             
         workspace_dir = os.path.join(self.workspace_root, unique_safe_name)
-        
-        # Instead of removing the existing workspace, we'll use a new unique directory
-        # This avoids file lock issues with previously created workspaces
+
         if os.path.exists(workspace_dir):
             try:
                 # Just in case the exact same timestamp exists (very unlikely)
@@ -161,7 +156,6 @@ class WorkspaceService:
             return {"status": "error", "message": f"Failed to create workspace directory: {str(e)}"}
         
         # Clean up old workspaces with same base name to avoid filling disk space
-        # Do this in a try/except block and don't fail if cleanup fails
         try:
             # Look for directories that match the base name pattern
             base_dirs = [d for d in os.listdir(self.workspace_root) 
@@ -172,21 +166,18 @@ class WorkspaceService:
             # Sort by creation time, oldest first
             base_dirs.sort(key=lambda d: os.path.getctime(os.path.join(self.workspace_root, d)))
             
-            # Keep only the 3 most recent directories (plus the new one we're creating)
+            # Keep only the 3 most recent directories (plus the new one being created)
             dirs_to_remove = base_dirs[:-2] if len(base_dirs) > 2 else []
             
             for old_dir in dirs_to_remove:
                 old_path = os.path.join(self.workspace_root, old_dir)
                 try:
-                    logger.info(f"Attempting to clean up old workspace: {old_path}")
                     shutil.rmtree(old_path, ignore_errors=True)
                 except Exception as e:
-                    # Just log but don't fail if we can't remove old directories
                     logger.warning(f"Could not remove old workspace directory {old_path}: {str(e)}")
         except Exception as e:
             logger.warning(f"Error during old workspace cleanup: {str(e)}")
         
-        # Optimized git init with performance settings
         success, output = self._run_git_command(["git", "init", "--initial-branch=main"], cwd=workspace_dir)
         if not success:
             return {"status": "error", "message": f"Failed to initialize git repository: {output}"}
@@ -217,7 +208,7 @@ class WorkspaceService:
         failed_repos = []
         
         # Use parallel processing with optimal worker count
-        max_workers = min(len(repo_urls), 6)  # Increase to 6 concurrent operations for better performance
+        max_workers = min(len(repo_urls), 6)  # TODO: maybe test out different values here
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all submodule addition tasks
@@ -235,8 +226,6 @@ class WorkspaceService:
                         error_message = f"Failed to add submodule {repo_url}: {output}"
                         logger.error(error_message)
                         failed_repos.append(repo_url)
-                    else:
-                        logger.info(f"Successfully added submodule {repo_name}")
                 except Exception as e:
                     logger.error(f"Exception while adding submodule {repo_url}: {str(e)}")
                     failed_repos.append(repo_url)
@@ -270,7 +259,6 @@ class WorkspaceService:
                 try:
                     with open(gitmodules_path, "a", encoding='utf-8') as f:
                         f.write("".join(gitmodules_additions))
-                    logger.info("Added failed repositories as comments in .gitmodules for manual retry")
                 except Exception as e:
                     logger.warning(f"Could not add failed repositories to .gitmodules: {e}")
         else:
@@ -321,7 +309,7 @@ class WorkspaceService:
         )
         if not success:
             if "nothing to commit" in output or "no changes added to commit" in output:
-                 logger.info(f"Initial commit: {output} - proceeding as this is not an error for workspace creation.")
+                 logger.info(f"Initial commit: {output} - proceeding as this expected for workspace creation.")
             else:
                 return {"status": "error", "message": f"Failed to commit changes: {output}"}
         
@@ -345,7 +333,7 @@ class WorkspaceService:
         }
         
     def _create_script_from_template(self, workspace_dir: str, script_name: str, script_content: str = None) -> bool:
-        """Create a script file from template or provided content and make it executable."""
+        """Create a script file from template and make it executable."""
         script_path = os.path.join(workspace_dir, script_name)
         service_dir = os.path.dirname(os.path.abspath(__file__))
         template_path = os.path.join(service_dir, "..", "templates", script_name)

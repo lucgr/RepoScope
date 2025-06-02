@@ -3,7 +3,7 @@
 // Listen for installation and set default settings
 chrome.runtime.onInstalled.addListener(() => {
     chrome.storage.sync.set({
-        backendUrl: "http://localhost:8000", // TODO: Make this configurable
+        backendUrl: "http://localhost:8000",
         gitlabToken: "", 
         repoUrls: ""
     });
@@ -24,7 +24,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         
         (async () => {
             try {
-                // Ensure we have proper request options with headers
+                // Ensure proper request options with headers
                 const fetchOptions = {
                     method: request.options?.method || "GET",
                     headers: request.options?.headers || {},
@@ -49,7 +49,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 });
             }
         })();
-        return true; // Required for async response
+        return true;
     }
 });
 

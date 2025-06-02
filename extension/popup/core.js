@@ -85,7 +85,7 @@ function setupTabNavigation() {
         });
     });
     
-    // Load saved active tab
+    // Load saved active tab, not sure if this actually helps (TODO: experiment)
     chrome.storage.sync.get(["activeTab"], function(data) {
         const activeTab = data.activeTab || "settings-section";
         const activeButton = document.querySelector(`.tab-btn[data-tab="${activeTab}"]`);
@@ -137,7 +137,6 @@ async function fetchAllGitLabRepos(gitlabToken) {
         more = data.length === perPage;
         page++;
     }
-    // Return unique HTTPS URLs only
     return Array.from(new Set(repos.map(r => r.http_url_to_repo).filter(Boolean)));
 }
 
@@ -145,50 +144,40 @@ async function fetchAllGitLabRepos(gitlabToken) {
 function initializePopup() {
     console.log("Initializing popup");
     
-    // 1. Setup tab navigation
+    // Setup tab navigation
     setupTabNavigation();
     
-    // 2. Setup Save Settings button
+    // Setup Save Settings button
     const saveSettingsBtn = document.getElementById("save-settings");
     if (saveSettingsBtn) {
         saveSettingsBtn.addEventListener("click", saveSettings);
-    } else {
-        console.error("Save settings button not found! #save-settings");
     }
     
-    // 3. Setup Add Repository button
+    // Setup Add Repository button
     const addRepoBtn = document.getElementById("add-repo-btn");
     if (addRepoBtn) {
         addRepoBtn.addEventListener("click", addRepository);
-    } else {
-        console.error("Add repository button not found! #add-repo-btn");
-    }
+    } 
     
-    // 4. Setup Refresh PRs button
+    // Setup Refresh PRs button
     const refreshPRsBtn = document.getElementById("refresh-prs-btn");
     if (refreshPRsBtn) {
         refreshPRsBtn.addEventListener("click", () => loadUnifiedPRs(false));
-    } else {
-        console.error("Refresh PRs button not found! #refresh-prs-btn");
     }
     
-    // 5. Setup Create Workspace button
+    // Setup Create Workspace button
     const createWorkspaceBtn = document.getElementById("create-workspace-btn");
     if (createWorkspaceBtn) {
         createWorkspaceBtn.addEventListener("click", createVirtualWorkspace);
-    } else {
-        console.error("Create workspace button not found! #create-workspace-btn");
     }
     
-    // 6. Setup Branch Name input to extract task name
+    // Setup Branch Name input to extract task name
     const branchNameInput = document.getElementById("workspace-branch-name");
     if (branchNameInput) {
         branchNameInput.addEventListener("input", extractTaskFromBranch);
-    } else {
-        console.error("Branch name input not found! #workspace-branch-name");
     }
     
-    // 7. Load saved settings
+    // Load saved settings
     chrome.storage.sync.get(["backendUrl", "gitlabToken", "repoUrls"], function(data) {
         // Set backend URL
         const backendUrlInput = document.getElementById("backend-url");
@@ -204,11 +193,10 @@ function initializePopup() {
         
         // Show/hide add repo form based on token
         showOrHideAddRepoForm(!!data.gitlabToken);
-        // Always use current search value for filtering
         const searchInput = document.getElementById("repo-search");
         const searchValue = searchInput ? searchInput.value : "";
-        loadRepositoryList(data.repoUrls || "", searchValue, true);
-        updateWorkspaceRepoSelection(data.repoUrls || "", searchValue, true);
+        // loadRepositoryList(data.repoUrls || "", searchValue, true);
+        // updateWorkspaceRepoSelection(data.repoUrls || "", searchValue, true);
         
         // Load unified PRs
         loadUnifiedPRs(false);
@@ -270,8 +258,8 @@ function saveSettings() {
             showOrHideAddRepoForm(true);
             const searchInput = document.getElementById("repo-search");
             const searchValue = searchInput ? searchInput.value : "";
-            loadRepositoryList(repoUrls.join("\n"), searchValue, true);
-            updateWorkspaceRepoSelection(repoUrls.join("\n"), searchValue, true);
+            // loadRepositoryList(repoUrls.join("\n"), searchValue, true);
+            // updateWorkspaceRepoSelection(repoUrls.join("\n"), searchValue, true);
             loadUnifiedPRs(false);
             
             // Notify that repositories have been loaded
@@ -309,41 +297,43 @@ window.findElementWithText = findElementWithText;
 window.copyToClipboard = copyToClipboard;
 window.initializePopup = initializePopup;
 
-function loadRepositoryList(repoUrlsString, searchTerm = "", updateAllRepos = false) {
-    const repoList = document.getElementById("repo-list");
-    if (!repoList) return;
-    const tbody = repoList.querySelector("tbody");
-    if (!tbody) return;
-    const emptyState = document.getElementById("empty-repos");
-    // ... rest of the function ...
-}
 
-function updateWorkspaceRepoSelection(repoUrlsString, searchTerm = "", updateAllRepos = false) {
-    const container = document.getElementById("workspace-repo-selection");
-    if (!container) return;
-    const emptyState = document.getElementById("empty-workspace-repos");
-    // ... rest of the function ...
-}
+// TODO: remove these, they're copies from repository.js
+// function loadRepositoryList(repoUrlsString, searchTerm = "", updateAllRepos = false) {
+//     const repoList = document.getElementById("repo-list");
+//     if (!repoList) return;
+//     const tbody = repoList.querySelector("tbody");
+//     if (!tbody) return;
+//     const emptyState = document.getElementById("empty-repos");
+//     // ... rest of the function ...
+// }
 
-function addRepository() {
-    const url = document.getElementById("repo-url").value.trim();
-    if (!url) {
-        alert("Please enter a repository URL");
-        return;
-    }
+// function updateWorkspaceRepoSelection(repoUrlsString, searchTerm = "", updateAllRepos = false) {
+//     const container = document.getElementById("workspace-repo-selection");
+//     if (!container) return;
+//     const emptyState = document.getElementById("empty-workspace-repos");
+//     // ... rest of the function ...
+// }
 
-    chrome.storage.sync.get(["repoUrls"], function(data) {
-        const existingRepos = data.repoUrls
-            ? data.repoUrls.split("\n").filter(u => u.trim()).map(u => u.trim().toLowerCase().replace(/\/$/, ""))
-            : [];
-        const urlNormalized = url.toLowerCase().replace(/\/$/, "");
-        if (existingRepos.includes(urlNormalized)) {
-            alert("This repository is already in the list");
-            return;
-        }
-        // ... rest of add logic ...
-    });
-}
+// function addRepository() {
+//     const url = document.getElementById("repo-url").value.trim();
+//     if (!url) {
+//         alert("Please enter a repository URL");
+//         return;
+//     }
+
+//     chrome.storage.sync.get(["repoUrls"], function(data) {
+//         const existingRepos = data.repoUrls
+//             ? data.repoUrls.split("\n").filter(u => u.trim()).map(u => u.trim().toLowerCase().replace(/\/$/, ""))
+//             : [];
+//         const urlNormalized = url.toLowerCase().replace(/\/$/, "");
+//         if (existingRepos.includes(urlNormalized)) {
+//             alert("This repository is already in the list");
+//             return;
+//         }
+//         // ... rest of add logic ...
+//     });
+// }
 
 // After repositories are loaded from storage or updated, dispatch a custom event
 function dispatchReposLoadedEvent() {
@@ -351,5 +341,3 @@ function dispatchReposLoadedEvent() {
     const event = new CustomEvent("reposLoaded");
     document.dispatchEvent(event);
 }
-
-// Find where repositories are loaded from storage or saved to storage and add the event dispatch there 
