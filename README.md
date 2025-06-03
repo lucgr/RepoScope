@@ -204,53 +204,6 @@ A publicly accessible instance of the backend is available for demonstration or 
 
 If using a deployed backend, update the Backend URL in the extension settings accordingly.
 
-## Use Cases
-
-### Development Team Use Cases
-
-1. **Feature Development Across Services**:
-   - Create a unified workspace containing all affected repositories
-   - Make coordinated changes across multiple services
-   - Submit and track all related PRs from a single interface
-
-2. **Code Review Streamlining**:
-   - Reviewers see all related changes in one place
-   - Approve multiple PRs with a single action
-   - Ensure consistent review standards across repositories
-
-3. **Release Coordination**:
-   - Track the status of all PRs related to a release
-   - Ensure all changes are merged before deployment
-   - Monitor pipeline status across all affected repositories
-
-4. **Dependency Management**:
-   - Ensure consistent dependency versions across multiple services
-   - Identify repositories that need updates when dependencies change
-   - Check compatibility between different components' dependencies
-
-### DevOps Team Use Cases
-
-1. **CI/CD Pipeline Monitoring**:
-   - View build and test status across multiple repositories
-   - Quickly identify failing pipelines related to a task
-   - Coordinate fixes across multiple repositories
-
-2. **Deployment Readiness Checks**:
-   - Verify all related PRs are approved and merged
-   - Ensure all pipelines are passing before deployment
-   - Coordinate synchronized releases of interdependent components
-
-3. **Security Compliance**:
-   - Verify all repositories use approved versions of dependencies
-   - Identify repositories with outdated or vulnerable dependencies
-   - Streamline coordinated dependency updates across services
-
-### Product Team Use Cases
-
-1. **Feature Completion Tracking**:
-   - Monitor the progress of features spanning multiple repositories
-   - Verify all components of a feature are ready for release
-   - Coordinate stakeholder reviews of related changes
 
 ## Technical Details
 
