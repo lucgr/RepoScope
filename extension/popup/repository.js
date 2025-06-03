@@ -1,5 +1,4 @@
 // Repository management functions
-console.log("Repository module loaded and ready");
 
 // In-memory storage for all repos
 let allRepos = [];
@@ -34,6 +33,7 @@ function addRepository() {
         alert("Please enter a repository URL");
         return;
     }
+    // TODO: This should still work for org-repos but make sure
     if (!url.startsWith("https://gitlab.com/")) {
         alert("Please enter a valid GitLab repository URL (https://gitlab.com/...)");
         return;
@@ -86,7 +86,7 @@ function removeRepository(url) {
             : [];
         const updatedRepoUrls = updatedRepos.join("\n");
         chrome.storage.sync.set({ repoUrls: updatedRepoUrls }, function() {
-            // Update allRepos after remove
+            // Update allRepos after removal of a repo
             allRepos = updatedRepoUrls.split("\n").filter(u => u.trim());
             const searchInput = document.getElementById("repo-search");
             const searchValue = searchInput ? searchInput.value : "";
@@ -218,7 +218,7 @@ function getRepositoryUrls() {
     });
 }
 
-// On DOMContentLoaded, always set allRepos from storage
+// On DOMContentLoaded, always set allRepos from storage for faster loading
 window.addEventListener("DOMContentLoaded", function() {
     chrome.storage.sync.get(["repoUrls"], function(data) {
         allRepos = data.repoUrls ? data.repoUrls.split("\n").filter(u => u.trim()) : [];

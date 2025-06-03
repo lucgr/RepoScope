@@ -16,7 +16,7 @@ function extractTaskFromBranch() {
     
     // Extract task ID using patterns
     const patterns = [
-        // New general pattern to match backend
+        // General pattern to match backend
         /^([a-zA-Z_\-]+)\/([a-zA-Z0-9_\-]+)/i, 
         // JIRA-style with prefix
         /^(feature|bug|bugfix|hotfix|fix|chore|task)\/([A-Z]+-\d+)/i, 
@@ -57,34 +57,28 @@ function ensureWorkspaceNameInUrl(url, name) {
 // Helper function to create a full clone URL
 function createFullCloneUrl(baseUrl, workspaceName) {
     if (!baseUrl || !workspaceName) return null;
-    
     // Remove .git extension if present
     baseUrl = baseUrl.replace(/\.git$/, "");
-    
     // Remove any trailing slashes
     baseUrl = baseUrl.replace(/\/+$/, "");
-    
     // Add workspace name and .git extension
     return `${baseUrl}/${workspaceName}.git`;
 }
 
 // Helper function to ensure we have a valid clone URL
 function ensureValidCloneUrl(url, baseUrl, name) {
-    // If we have a full URL, ensure it contains the workspace name
+    // If a full URL is passed, ensure it contains the workspace name
     if (url && url.includes("://")) {
         return ensureWorkspaceNameInUrl(url, name);
     }
-    
     // If it's a path, return it as is
     if (url && (url.startsWith("/") || url.match(/^[A-Z]:\\/i))) {
         return url;
     }
-    
-    // If we don't have a valid URL but have a base URL and name, construct one
+    // If no valid URL but a base URL and name, construct one
     if (baseUrl && name) {
         return createFullCloneUrl(baseUrl, name);
     }
-    
     // If all else fails, return the original URL
     return url;
 }
@@ -119,7 +113,7 @@ function createVirtualWorkspace() {
     }
     
     if (!taskName) {
-        alert("Could not extract task name from branch. Please use format feature/ABC-123");
+        alert("Could not extract task name from branch. Please use the format feature/ABC-123");
         return;
     }
     
@@ -175,7 +169,7 @@ function createVirtualWorkspace() {
             return;
         }
         
-        backendUrl = backendUrl.replace(/\/+$/, "");
+        backendUrl = backendUrl.replace(/\/+$/, ""); // Remove trailing slashes
         
         function resetCreateButton() {
             createBtn.disabled = false;
@@ -200,7 +194,6 @@ function createVirtualWorkspace() {
             force_name_override: true
         };
         
-        console.log("Creating workspace with payload:", payload);
         resultDiv.style.display = "none"; // Clear previous results
         cloneCommandEl.textContent = "";
 
@@ -215,7 +208,7 @@ function createVirtualWorkspace() {
         })
         .then(response => {
             if (!response.ok) {
-                // If response is not OK, it's likely an error JSON from FastAPI
+                // If theresponse is not OK, it's likely an error-JSON from FastAPI
                 return response.json().then(errData => {
                     console.error("Error details from API:", errData);
                     throw new Error(`Failed to create workspace: ${response.status} - ${errData.detail || JSON.stringify(errData)}`);
@@ -249,7 +242,6 @@ function createVirtualWorkspace() {
             
             console.log("Workspace ZIP downloaded successfully:", filename);
             resultDiv.style.display = "block";
-            
             cloneCommandEl.innerHTML = `✅ workspace <strong style="font-family: monospace;">${filename}</strong> downloaded successfully! Check your downloads folder.`;
             
             // Add workspace to history
@@ -282,9 +274,6 @@ function loadWorkspaceHistory() {
     // Get workspace history from storage
     chrome.storage.sync.get(["workspaceHistory"], function(data) {
         const history = data.workspaceHistory || [];
-        
-        // DEBUG: Log workspace history objects
-        console.log("Workspace history objects:", history);
         
         // Clear container
         historyContainer.innerHTML = "";
@@ -371,7 +360,7 @@ function loadWorkspaceHistory() {
             let repoCount = "0";
             let repoTooltip = "";
             
-            // First, normalize the repos property if needed
+            // First normalize the repos property if needed
             if (!workspace.repos) {
                 workspace.repos = [];
             } else if (!Array.isArray(workspace.repos) && typeof workspace.repos === "string") {
@@ -380,10 +369,8 @@ function loadWorkspaceHistory() {
                 workspace.repos = [];
             }
             
-            // Now we're sure workspace.repos is an array
             repoCount = workspace.repos.length.toString();
-            repoTooltip = workspace.repos.join("\n");
-            
+            repoTooltip = workspace.repos.join("\n");            
             reposCell.textContent = repoCount;
             reposCell.title = repoTooltip;
             row.appendChild(reposCell);
@@ -413,7 +400,7 @@ function loadWorkspaceHistory() {
             // Delete button
             const deleteBtn = document.createElement("button");
             deleteBtn.className = "delete-history-btn";
-            deleteBtn.textContent = "x"; // Using a simple lowercase 'x' instead
+            deleteBtn.textContent = "x";
             deleteBtn.title = "Remove this workspace from history";
             
             deleteBtn.addEventListener("click", function() {
@@ -470,8 +457,6 @@ function cloneWorkspaceFromHistory(workspace, button, historyContainer) {
             force_name_override: true
         };
         
-        console.log("Using regular workspace creation mode for history clone");
-        
         // Create the workspace again
         fetch(`${backendUrl}/api/workspace/create`, {
             method: "POST",
@@ -495,7 +480,7 @@ function cloneWorkspaceFromHistory(workspace, button, historyContainer) {
             
             // Extract filename from content-disposition header
             const contentDisposition = response.headers.get("content-disposition");
-            let filename = `${workspace.name}.zip`; // Default filename
+            let filename = `${workspace.name}.zip`;
             if (contentDisposition) {
                 const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
                 if (filenameMatch && filenameMatch.length > 1) {
@@ -569,7 +554,6 @@ function cloneWorkspaceFromHistory(workspace, button, historyContainer) {
 // Function to add workspace to history
 function addWorkspaceToHistory(workspace) {
     if (!workspace || !workspace.name) return;
-    
     // Ensure repos is an array
     if (workspace.repos && !Array.isArray(workspace.repos)) {
         if (typeof workspace.repos === "string") {
@@ -589,9 +573,6 @@ function addWorkspaceToHistory(workspace) {
         if (history.length > 10) {
             history.shift(); // Remove oldest
         }
-        
-        // Debug: log what's being saved
-        console.log("Saving workspace history with repos:", history.map(w => ({name: w.name, reposCount: w.repos ? w.repos.length : 0})));
         
         // Save updated history
         chrome.storage.sync.set({ workspaceHistory: history }, function() {
@@ -631,7 +612,6 @@ window.removeWorkspaceFromHistory = removeWorkspaceFromHistory;
 
 // Ensure the setup for branch name to task name extraction is still called if needed
 document.addEventListener("DOMContentLoaded", function() {
-    // ... (your existing DOMContentLoaded listeners) ...
     const branchInput = document.getElementById("workspace-branch-name");
     if (branchInput) {
         branchInput.addEventListener("input", extractTaskFromBranch);
@@ -643,8 +623,4 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     loadWorkspaceHistory(); // Load workspace history on popup open
-    
-    // Consider removing or repurposing the copy clone command button logic
-    // const copyBtn = document.getElementById("copy-clone-command-btn");
-    // if (copyBtn) copyBtn.style.display = "none"; 
 }); 

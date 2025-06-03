@@ -195,8 +195,8 @@ function initializePopup() {
         showOrHideAddRepoForm(!!data.gitlabToken);
         const searchInput = document.getElementById("repo-search");
         const searchValue = searchInput ? searchInput.value : "";
-        // loadRepositoryList(data.repoUrls || "", searchValue, true);
-        // updateWorkspaceRepoSelection(data.repoUrls || "", searchValue, true);
+        loadRepositoryList(data.repoUrls || "", searchValue, true);
+        updateWorkspaceRepoSelection(data.repoUrls || "", searchValue, true);
         
         // Load unified PRs
         loadUnifiedPRs(false);
@@ -258,8 +258,8 @@ function saveSettings() {
             showOrHideAddRepoForm(true);
             const searchInput = document.getElementById("repo-search");
             const searchValue = searchInput ? searchInput.value : "";
-            // loadRepositoryList(repoUrls.join("\n"), searchValue, true);
-            // updateWorkspaceRepoSelection(repoUrls.join("\n"), searchValue, true);
+            loadRepositoryList(repoUrls.join("\n"), searchValue, true);
+            updateWorkspaceRepoSelection(repoUrls.join("\n"), searchValue, true);
             loadUnifiedPRs(false);
             
             // Notify that repositories have been loaded
@@ -296,44 +296,6 @@ window.showMessage = showMessage;
 window.findElementWithText = findElementWithText;
 window.copyToClipboard = copyToClipboard;
 window.initializePopup = initializePopup;
-
-
-// TODO: remove these, they're copies from repository.js
-// function loadRepositoryList(repoUrlsString, searchTerm = "", updateAllRepos = false) {
-//     const repoList = document.getElementById("repo-list");
-//     if (!repoList) return;
-//     const tbody = repoList.querySelector("tbody");
-//     if (!tbody) return;
-//     const emptyState = document.getElementById("empty-repos");
-//     // ... rest of the function ...
-// }
-
-// function updateWorkspaceRepoSelection(repoUrlsString, searchTerm = "", updateAllRepos = false) {
-//     const container = document.getElementById("workspace-repo-selection");
-//     if (!container) return;
-//     const emptyState = document.getElementById("empty-workspace-repos");
-//     // ... rest of the function ...
-// }
-
-// function addRepository() {
-//     const url = document.getElementById("repo-url").value.trim();
-//     if (!url) {
-//         alert("Please enter a repository URL");
-//         return;
-//     }
-
-//     chrome.storage.sync.get(["repoUrls"], function(data) {
-//         const existingRepos = data.repoUrls
-//             ? data.repoUrls.split("\n").filter(u => u.trim()).map(u => u.trim().toLowerCase().replace(/\/$/, ""))
-//             : [];
-//         const urlNormalized = url.toLowerCase().replace(/\/$/, "");
-//         if (existingRepos.includes(urlNormalized)) {
-//             alert("This repository is already in the list");
-//             return;
-//         }
-//         // ... rest of add logic ...
-//     });
-// }
 
 // After repositories are loaded from storage or updated, dispatch a custom event
 function dispatchReposLoadedEvent() {

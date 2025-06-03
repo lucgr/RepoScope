@@ -100,7 +100,7 @@ async def create_virtual_workspace(
             # Log performance metrics if available
             if "performance" in service_response:
                 perf = service_response["performance"]
-                # logger.info(f"Workspace performance: {perf['total_duration']}s total, {perf['submodule_duration']}s submodules, {perf['repo_count']} repos, {perf['successful_repos']} successful")
+                logger.info(f"Workspace performance: {perf['total_duration']}s total, {perf['submodule_duration']}s submodules, {perf['repo_count']} repos, {perf['successful_repos']} successful")
 
             # Add cleanup tasks to run after the response is sent
             background_tasks.add_task(cleanup_files, workspace_dir_path_for_cleanup, zip_file_path_for_cleanup)

@@ -8,7 +8,7 @@ document.addEventListener("DOMContentLoaded", function() {
             loadScript("pull-requests.js", function() {
                 loadScript("workspace.js", function() {
                     console.log("All scripts loaded successfully");
-                    // Explicitly call initializePopup after all scripts are loaded
+                    // Explicitly call initializePopup after all scripts are loaded to ensure all elements are available
                     if (typeof initializePopup === "function") {
                         initializePopup();
                     } else {

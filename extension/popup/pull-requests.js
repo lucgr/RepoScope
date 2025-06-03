@@ -19,7 +19,7 @@ function loadUnifiedPRs(fastMode = true) {
         if (fastMode) {
             contentArea.innerHTML = "<div class=\"loading\">Loading unified PRs...</div>";
         } else {
-            contentArea.innerHTML = "<div class=\"loading\">Loading all PRs (this may take longer)...</div>";
+            contentArea.innerHTML = "<div class=\"loading\">Loading all PRs...</div>";
         }
     }
     
@@ -55,7 +55,7 @@ function loadUnifiedPRs(fastMode = true) {
             // Use fast endpoint for initial load, but ensure pipeline status is included
             apiUrl = `${backendUrl}/api/prs/unified/fast?${repoQuery}&include_pipeline_status=true`;
         } else {
-            // Use full endpoint with full_load=true to get everything
+            // Use full endpoint with full_load=true to get all data and all PRs (higher limit)
             apiUrl = `${backendUrl}/api/prs/unified?${repoQuery}&full_load=true&include_pipeline_status=true`;
         }
         
@@ -79,28 +79,27 @@ function loadUnifiedPRs(fastMode = true) {
         .then(data => {
             const loadTime = Date.now() - startTime;
             console.log(`Unified PRs loaded in ${loadTime}ms (${fastMode ? "fast" : "full"} mode)`);
-            console.log("Raw API response data:", JSON.stringify(data, null, 2));
             
-            // Debug: Check if any PRs have pipeline status
-            const tasks = Array.isArray(data) ? data : [data];
-            tasks.forEach(task => {
-                console.log(`=== TASK: ${task.task_name} ===`);
-                if (task.prs) {
-                    task.prs.forEach(pr => {
-                        console.log(`PR ${pr.iid} in ${pr.repository_name}:`, {
-                            title: pr.title,
-                            task_name: pr.task_name,  // This is important for backend matching
-                            pipeline_status: pr.pipeline_status,
-                            isApproved: pr.isApproved,
-                            repository_url: pr.repository_url,
-                            web_url: pr.web_url
-                        });
-                    });
-                } else {
-                    console.log("No PRs found in task");
-                }
-                console.log(`=== END TASK: ${task.task_name} ===`);
-            });
+            // Debug: Check if any PRs have pipeline status, TODO: remove, this was just for debugging
+            // const tasks = Array.isArray(data) ? data : [data];
+            // tasks.forEach(task => {
+            //     console.log(`=== TASK: ${task.task_name} ===`);
+            //     if (task.prs) {
+            //         task.prs.forEach(pr => {
+            //             console.log(`PR ${pr.iid} in ${pr.repository_name}:`, {
+            //                 title: pr.title,
+            //                 task_name: pr.task_name,  // This is important for backend matching
+            //                 pipeline_status: pr.pipeline_status,
+            //                 isApproved: pr.isApproved,
+            //                 repository_url: pr.repository_url,
+            //                 web_url: pr.web_url
+            //             });
+            //         });
+            //     } else {
+            //         console.log("No PRs found in task");
+            //     }
+            //     console.log(`=== END TASK: ${task.task_name} ===`);
+            // });
             
             // Always completely replace the UI content
             updateUnifiedPRsUI(data, gitlabToken, fastMode);
@@ -125,8 +124,6 @@ function loadUnifiedPRs(fastMode = true) {
 // Async approval status fetching with batching for better performance
 async function fetchApprovalStatusesAsync(data, gitlabToken) {
     if (!gitlabToken || !data) return;
-    
-    console.log("Fetching approval statuses asynchronously");
     
     const tasks = Array.isArray(data) ? data : [data];
     
@@ -187,7 +184,7 @@ async function processTaskApprovals(task, gitlabToken) {
     }
 }
 
-// Fetch approval statuses from GitLab API (original method for full loads)
+// Fetch approval statuses from GitLab API
 function fetchApprovalStatuses(data, gitlabToken) {
     // Skip if no token
     if (!gitlabToken) return;
@@ -220,15 +217,14 @@ function fetchApprovalStatuses(data, gitlabToken) {
             })
             .then(response => {
                 console.log(`Approval response status: ${response.status}`);
-                console.log(`Approval response headers:`, response.headers);
+                console.log("Approval response headers:", response.headers);
                 if (!response.ok) {
                     return response.text().then(text => {
                         console.error(`Approval failed with status ${response.status}:`);
-                        console.error(`Response text:`, text);
                         let errorMessage = text;
                         try {
                             const errorJson = JSON.parse(text);
-                            console.error(`Parsed error:`, errorJson);
+                            console.error("Parsed error:", errorJson);
                             errorMessage = errorJson.detail || errorJson.message || text;
                         } catch (e) {
                             console.log("Error response is not JSON");
@@ -239,8 +235,6 @@ function fetchApprovalStatuses(data, gitlabToken) {
                 return response.json();
             })
             .then(approvalData => {
-                console.log(`Approval data for PR ${pr.id}:`, approvalData);
-                
                 // Update PR with approval data
                 pr.approved = approvalData.approved;
                 pr.approved_by = approvalData.approved_by || [];
@@ -259,7 +253,7 @@ function fetchApprovalStatuses(data, gitlabToken) {
                     approvedCount++;
                 }
                 
-                // If we've processed all PRs, check if task is fully approved
+                // If all PRs processed, check if task is fully approved
                 if (approvedCount === prs.length) {
                     updateTaskApprovalStatus(task.task_name);
                 }
@@ -275,8 +269,7 @@ function fetchApprovalStatuses(data, gitlabToken) {
 function getProjectPathFromUrl(repoUrl) {
     if (!repoUrl) return null;
     
-    // Extract path from GitLab URL
-    // Format: https://gitlab.com/username/project
+    // Extract path from GitLab URL in format: https://gitlab.com/username/project
     const match = repoUrl.match(/gitlab\.com\/([^\/]+\/[^\/]+)(?:\/|$)/);
     return match ? match[1] : null;
 }
@@ -323,7 +316,7 @@ function updatePrApprovalStatus(pr) {
         if (taskHeader) {
             const taskName = taskHeader.textContent.trim();
             // Remove the PR count part to get just the task name
-            const taskNameOnly = taskName.split(' (')[0];
+            const taskNameOnly = taskName.split(" (")[0];
             updateTaskApprovalStatus(taskNameOnly);
         }
     }
@@ -366,11 +359,10 @@ function updateTaskApprovalStatus(taskName) {
 // Helper function to clean task name from any PR count information
 function cleanTaskName(taskName) {
     if (!taskName) return taskName;
-    
-    // Remove PR count patterns like "(3 PRs)", "(1 PR)", etc.
+    // Remove PR count patterns if fetched from the DOM
     return taskName
-        .replace(/\s*\(\d+\s+PRs?\)$/, '')  // Remove " (X PR)" or " (X PRs)"
-        .replace(/\s*\(\d+\s+pr\)$/i, '')   // Case insensitive version
+        .replace(/\s*\(\d+\s+PRs?\)$/, "")  // Removes "(X PR)" or "(X PRs)"
+        .replace(/\s*\(\d+\s+pr\)$/i, "")   // Case insensitive version
         .trim();
 }
 
@@ -403,8 +395,7 @@ function approvePR(repoUrl, prId, button) {
             return;
         }
         
-        // Strip the PR count part to get just the task name - handle both cases
-        // The task name could be "ABC-9" or "ABC-9 (3 PRs)" 
+        // Strip the PR count part to get just the task name
         const taskName = cleanTaskName(taskNameRaw);
         
         fetch(`${backendUrl}/api/prs/approve?task_name=${encodeURIComponent(taskName)}`, {
@@ -446,8 +437,7 @@ function approvePR(repoUrl, prId, button) {
                     approvalStatus.innerHTML = "Approved";
                     approvalStatus.title = "Approved";
                 }
-                
-                // Remove the approve button completely
+                // Remove the approve button completely after approval
                 button.remove();
             }
             
@@ -485,7 +475,7 @@ function checkAllTaskPRsApproved(prItem) {
     }
 }
 
-// Approve all PRs in a task group
+// Approve all PRs in a task group. TODO: ensure this also works for PRs matched only by branch name
 function approveAllPRs(taskId) {
     let taskName;
     try {
@@ -499,7 +489,6 @@ function approveAllPRs(taskId) {
     
     const taskHeaders = document.querySelectorAll(".task-group .task-header h3");
     let taskHeader = null;
-
     for (const header of taskHeaders) {
         const rawHeaderText = header.textContent.trim();
         const cleanedHeaderText = cleanTaskName(rawHeaderText);
@@ -513,7 +502,6 @@ function approveAllPRs(taskId) {
         console.warn(`Approve All: No matching taskHeader found for cleaned task name "${taskName}".`);
         return;
     }
-    
     const taskGroup = taskHeader.closest(".task-group");
     if (!taskGroup) {
         console.warn(`Approve All: No parent .task-group found for matched task header for "${taskName}".`);
@@ -617,7 +605,6 @@ function approveAllPRs(taskId) {
             }
         })
         .catch(error => {
-            console.error("Failed to approve all PRs:", error);
             if (approveAllBtn) {
                 approveAllBtn.disabled = false;
                 approveAllBtn.textContent = "Approve All";
@@ -686,7 +673,7 @@ function getPipelineStatusLabel(status) {
         "no_pipeline": "do_not_disturb_on" // Icon for no pipeline
     };
     
-    return labelMap[status] || "help"; // Default to "help" for truly unknown statuses
+    return labelMap[status] || "help"; // Default to "help" if state is actually unknown
 }
 
 // Helper function to find an element with specific text content
@@ -700,7 +687,7 @@ function findElementWithText(selector, text) {
     return null;
 }
 
-// Add "Load More" option for fast mode
+// Add "Load More" option for fast mode. TODO: do I even use this anymore? Check if it can be removed.
 function addLoadMoreOption(contentArea) {
     const loadMoreDiv = document.createElement("div");
     loadMoreDiv.className = "load-more-section";
@@ -730,7 +717,7 @@ function addLoadMoreOption(contentArea) {
 
 // Helper function to normalize pipeline status strings
 function normalizeStatusString(statusString) {
-    if (!statusString || typeof statusString !== 'string') {
+    if (!statusString || typeof statusString !== "string") {
         return "unknown";
     }
     const rawStatus = statusString.toLowerCase();
@@ -746,8 +733,8 @@ function normalizeStatusString(statusString) {
         return "canceled";
     } else if (rawStatus === "skipped") {
         return "skipped";
-    } else if (rawStatus === 'no_pipeline') { // Specific status if API confirms no pipelines
-        return 'no_pipeline';
+    } else if (rawStatus === "no_pipeline") { // Specific status if API confirms no pipelines
+        return "no_pipeline";
     }
     console.log(`[Pipeline Normalize] Unknown status string: "${rawStatus}", defaulting to "unknown"`);
     return "unknown";
@@ -765,7 +752,6 @@ async function fetchPipelineStatusForPR(pr, gitlabToken) {
         console.warn("[Pipeline Client Fetch] Could not extract project path for PR:", pr.title, pr.repository_url);
         return null;
     }
-
     const apiUrl = `https://gitlab.com/api/v4/projects/${encodeURIComponent(projectPath)}/merge_requests/${pr.iid}/pipelines`;
 
     try {
@@ -795,10 +781,10 @@ async function fetchPipelineStatusForPR(pr, gitlabToken) {
         if (pipelines && pipelines.length > 0) {
             const latestPipeline = pipelines[0]; // GitLab API returns latest first
             console.log(`[Pipeline Client Fetch] Successfully fetched pipeline status for MR !${pr.iid} (${pr.title}): ${latestPipeline.status}`);
-            return latestPipeline.status; // e.g., "success", "failed"
+            return latestPipeline.status;
         } else {
             console.log(`[Pipeline Client Fetch] No pipelines found for MR !${pr.iid} (${pr.title}) in ${projectPath}.`);
-            return 'no_pipeline'; // Special marker
+            return "no_pipeline";
         }
     } catch (error) {
         console.error(`[Pipeline Client Fetch] Error fetching pipelines for MR !${pr.iid} (${pr.title}) in ${projectPath}:`, error);
@@ -821,8 +807,6 @@ function updateUnifiedPRsUI(data, gitlabToken, fastMode = false) {
         }
         return;
     }
-
-    console.log("Data for unified PRs:", data);
     
     // Add performance info for fast mode
     if (fastMode) {
@@ -906,7 +890,7 @@ function updateUnifiedPRsUI(data, gitlabToken, fastMode = false) {
         prsList.className = "prs-list";
         
         task.prs.forEach(pr => {
-            console.log(`Rendering PR: ${pr.title}, repo: ${pr.repository_url}, pipeline_status (from backend): ${pr.pipeline_status}, isApproved: ${pr.isApproved}`);
+            // console.log(`Rendering PR: ${pr.title}, repo: ${pr.repository_url}, pipeline_status (from backend): ${pr.pipeline_status}, isApproved: ${pr.isApproved}`);
             
             const prItem = document.createElement("div");
             prItem.className = "pr-item";
@@ -947,9 +931,9 @@ function updateUnifiedPRsUI(data, gitlabToken, fastMode = false) {
             // Initial Pipeline Status Display (from backend data or default)
             let initialStatusToNormalize = null;
             if (pr.pipeline_status) {
-                if (typeof pr.pipeline_status === 'object' && pr.pipeline_status !== null && typeof pr.pipeline_status.status === 'string') {
+                if (typeof pr.pipeline_status === "object" && pr.pipeline_status !== null && typeof pr.pipeline_status.status === "string") {
                     initialStatusToNormalize = pr.pipeline_status.status;
-                } else if (typeof pr.pipeline_status === 'string') {
+                } else if (typeof pr.pipeline_status === "string") {
                     initialStatusToNormalize = pr.pipeline_status;
                 }
             }
@@ -961,16 +945,15 @@ function updateUnifiedPRsUI(data, gitlabToken, fastMode = false) {
             pipelineStatusEl.title = getPipelineStatusTitle(currentNormalizedStatus);
             prActions.appendChild(pipelineStatusEl);
 
-            // If backend status is null, try to fetch from GitLab directly
-            // Use a unique ID for the element if we need to update it later.
-            // Using a combination of task name and PR IID for a more unique ID.
-            const pipelineStatusElId = `pipeline-status-${task.task_name.replace(/\s+/g, '-')}-${pr.iid}`;
+            // If backend status is null, try to fetch from GitLab directly, 
+            // using a combination of task name and PR IID for a more unique ID.
+            const pipelineStatusElId = `pipeline-status-${task.task_name.replace(/\s+/g, "-")}-${pr.iid}`;
             pipelineStatusEl.id = pipelineStatusElId;
 
             if (pr.pipeline_status === null && gitlabToken) {
                 console.log(`[Pipeline Fallback] Backend status for PR ${pr.title} is null. Attempting direct GitLab fetch.`);
                 fetchPipelineStatusForPR(pr, gitlabToken).then(gitlabStatus => {
-                    if (gitlabStatus) { // gitlabStatus can be a string like "success", "failed", "no_pipeline", or null on error
+                    if (gitlabStatus) {
                         const newNormalizedStatus = normalizeStatusString(gitlabStatus);
                         // Update the PR object in memory as well
                         pr.pipeline_status_fetched = newNormalizedStatus; // Store a separate field to avoid re-fetching on simple UI redraws
@@ -1037,7 +1020,6 @@ function updateUnifiedPRsUI(data, gitlabToken, fastMode = false) {
         newBtn.addEventListener("click", function() {
             const rawTaskId = this.dataset.task;
             if (!rawTaskId) {
-                console.error("Task ID is missing from button dataset for Approve All.");
                 alert("Error: Could not approve all PRs because task ID is missing.");
                 return;
             }
@@ -1045,7 +1027,6 @@ function updateUnifiedPRsUI(data, gitlabToken, fastMode = false) {
                 const cleanedTaskId = cleanTaskName(rawTaskId);
                 approveAllPRs(cleanedTaskId);
             } catch (error) {
-                console.error("Error calling approveAllPRs function:", error);
                 alert(`Error during 'Approve All': ${error.message}`);
             }
         });
