@@ -6,28 +6,6 @@ A Chrome extension for viewing and managing related Pull Requests across multipl
 
 MultiRepoHub solves the challenge of managing code changes across multiple repositories by providing a unified interface for tracking, approving, and monitoring related Pull Requests. It integrates directly into GitLab's UI and provides powerful virtual workspace capabilities for multi-repository development.
 
-## Key Features
-
-- **Unified PR Management**: View all related PRs across repositories in a single interface
-- **Bulk Approval**: Approve multiple related PRs with a single click
-- **Pipeline Monitoring**: Track CI/CD pipeline status for all related PRs
-- **Virtual Workspaces**: Create unified working environments that combine multiple repositories
-- **Cross-repo Dependency Checker**: Identify mismatched dependency versions across repositories
-- **GitLab Integration**: Seamless integration with GitLab's merge request pages
-- **Cross-Repository Commit & PR Creation**: Streamlined creation of consistent changes across multiple repositories
-- **Support for Both GitLab and GitHub**: Flexible integration with major Git platforms
-
-## Problem Solving
-
-MultiRepoHub addresses several key challenges in modern software development:
-
-1. **Microservices Complexity**: Simplifies the management of changes across microservice architectures
-2. **Fragmented Reviews**: Consolidates the review process for related changes across repositories
-3. **Inconsistent Branch Management**: Ensures consistent branch naming and management across repositories
-4. **Multi-Repository Changes**: Streamlines the process of making coordinated changes across multiple repositories
-5. **CI/CD Visibility**: Provides a unified view of pipeline status across related PRs
-6. **Dependency Inconsistencies**: Detects version mismatches between common dependencies across repositories
-
 ## Detailed Usage Guide
 
 ### Initial Setup
@@ -43,21 +21,6 @@ MultiRepoHub addresses several key challenges in modern software development:
    - Add repositories to track
    - All settings are saved automatically and securely in your browser
 
-### Viewing Unified PRs
-
-1. **Through the Extension Popup**:
-   - Click the extension icon to open the popup
-   - Navigate to the "Unified PRs" tab
-   - See all PRs grouped by task name, with approval and pipeline status
-   - Click on any PR to open it in GitLab
-
-2. **From GitLab's Interface**:
-   - Open any merge request in GitLab
-   - The extension automatically detects the task name from the branch
-   - A unified view is injected into the page, showing all related PRs
-   - Approval status and pipeline status are displayed for each PR
-   - You can approve all related PRs directly from this view
-
 ### Working with Virtual Workspaces
 
 1. **Creating a Workspace**:
@@ -70,7 +33,7 @@ MultiRepoHub addresses several key challenges in modern software development:
    - Once processing is complete, a ZIP file containing the virtual workspace will be automatically downloaded by your browser. Extract this ZIP to get your workspace.
 
 2. **Using the Workspace**:
-   - After extracting the ZIP, navigate to the workspace directory
+   - After extracting the ZIP, navigate to the workspace directory in your IDE of choice
    - Use the provided multi-repo scripts to manage operations across all repositories:
 
 ```bash
@@ -110,73 +73,6 @@ MultiRepoHub addresses several key challenges in modern software development:
    - Previously created workspaces are listed in the Workspace History section.
    - You can re-download the ZIP for a previously defined workspace configuration by clicking its entry (note: this re-creates and re-zips the workspace on the backend).
 
-### Using the Cross-repo Dependency Checker
-
-1. **Accessing the Dependency Checker**:
-   - Click the extension icon to open the popup
-   - Navigate to the "Cross-repo Dependencies" tab
-   - Select the repositories you want to compare
-
-2. **Checking Dependencies**:
-   - By default, the checker will compare dependency files from the main branches
-   - Enable the "Show branch selection" option to specify different branches for each repository
-   - Click "Check Dependencies" to analyze and compare dependency versions
-
-3. **Understanding the Results**:
-   - The tool displays only the dependencies with version mismatches
-   - For Python projects, it checks requirements.txt and setup.py files
-   - For Go projects, it analyzes go.mod and go.sum files
-   - Results are organized by language (Python and Go)
-   - Each mismatch shows which repositories use which versions
-
-4. **Branch-Specific Comparisons**:
-   - Specify different branches to compare feature branches against main
-   - Compare dependencies across different feature branches
-   - Check dependencies between repositories at specific versions or tags
-
-5. **Use Cases**:
-   - Detect inconsistent dependency versions before merging PRs
-   - Verify that critical updates have been applied across all repositories
-   - Identify outdated dependencies that need synchronization
-   - Check compatibility between services during integration
-
-### UI Elements and What They Display
-
-#### Settings Tab
-- **Backend URL Field**: Connection point to the backend server
-- **GitLab Token Field**: Your personal access token for GitLab API access
-- **Repository URLs Area**: List of repositories to track (one URL per line)
-- **Status Messages**: Feedback on saved settings and validation results
-
-#### Unified PRs Tab
-- **Task Groups**: PRs grouped by task name extracted from branch names
-- **PR Cards**: Individual PR information including:
-  - PR title and repository name
-  - Approval status (green if approved)
-  - Pipeline status (success, failed, running, or pending)
-  - Change count and comment count
-- **Empty States**: Messages when no PRs are found or settings are incomplete
-
-#### Virtual Workspace Tab
-- **Workspace Form**: Fields to configure a new virtual workspace
-- **Repository Selection**: Checkboxes for selecting repositories to include
-- **Creation Result**: Status messages about the workspace creation and ZIP download.
-- **Workspace History**: List of previously created workspace configurations, allowing re-download.
-
-#### Injected GitLab View
-- **Related PRs Section**: Appears on merge request pages showing related PRs
-- **Approval Badges**: Visual indicators of approval status for each PR
-- **Pipeline Status**: Current CI/CD status for each related PR
-- **Bulk Actions**: Button to approve all related PRs simultaneously
-
-#### Cross-repo Dependencies Tab
-- **Repository Selection**: Checkboxes for selecting repositories to compare
-- **Branch Selection**: Optional text fields to specify which branch to check for each repository
-- **Results Display**: 
-  - Python Dependencies: Mismatches in requirements.txt and setup.py files
-  - Go Dependencies: Mismatches in go.mod and go.sum files
-  - Version Information: Which versions are used by which repositories
-  - Warning Messages: Any issues encountered when analyzing repositories
 
 ## Backend Setup
 
