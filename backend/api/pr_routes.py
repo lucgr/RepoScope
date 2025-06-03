@@ -107,19 +107,36 @@ async def approve_unified_prs(
     request: ApproveRequest = Body(...),
     pr_service: PRService = Depends(get_pr_service)
 ):
-    """Approve all PRs associated with a task name."""
+    """Approve all PRs associated with a task name or branch name."""
     try:
-        logger.info(f"Approving PRs for task {task_name} in repositories: {request.repo_urls}")
-        
+        logger.info(f"Approving PRs for task/branch '{task_name}' in repositories: {request.repo_urls}")
+
         # Fetch all PRs from the repositories
         prs = pr_service.fetch_prs(request.repo_urls)
+
+        # Filter PRs for the specific task or branch name
+        task_prs_candidates = []
+        for p in prs:
+            # If the PR has an extracted task_name, and it matches the input task_name
+            if p.task_name and p.task_name == task_name:
+                task_prs_candidates.append(p)
+            # If the PR does not have an extracted task_name, rather just a branch name
+            elif p.task_name is None:
+                # Check if the input task_name is prefixed with "Branch: "
+                if task_name.startswith("Branch: "):
+                    branch_name_to_match = task_name.replace("Branch: ", "", 1)
+                    if p.source_branch == branch_name_to_match:
+                        task_prs_candidates.append(p)
+                # If not prefixed, compare source_branch directly with task_name
+                elif p.source_branch == task_name:
+                    task_prs_candidates.append(p)
         
-        # Filter PRs for the specific task
-        task_prs = [pr for pr in prs if pr.task_name == task_name]
-        logger.info(f"Found {len(prs)} total PRs, {len(task_prs)} for task {task_name}")
-        
+        task_prs = task_prs_candidates # Use the collected candidates
+
+        logger.info(f"Found {len(prs)} total PRs, {len(task_prs)} for task/branch '{task_name}' after filtering")
+
         if not task_prs:
-            raise HTTPException(status_code=404, detail=f"No PRs found for task {task_name}")
+            raise HTTPException(status_code=404, detail=f"No PRs found for task/branch {task_name}")
         
         # Approve each PR
         for pr in task_prs:
@@ -133,7 +150,7 @@ async def approve_unified_prs(
                 logger.error(f"Error approving PR {pr.iid}: {str(e)}")
                 continue
                 
-        return {"message": f"Approved PRs for task {task_name}"}
+        return {"message": f"Approved PRs for task/branch {task_name}"}
     except Exception as e:
         logger.error(f"Error in approve_unified_prs: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
