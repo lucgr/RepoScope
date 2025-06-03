@@ -21,23 +21,35 @@ class PRService:
     def extract_task_name(self, branch_name: str) -> str:
         """Extract task name from branch name using common patterns."""
         # TODO: Make this more robust and configurable.
-        patterns = [
-            # General pattern: any_string/any_string_with_numbers_and_hyphens
-            r'^([a-zA-Z_\\-]+)/([a-zA-Z0-9_\\-]+)', 
+        patterns_config = [
+            # Renovate branches: group by "renovate/module"
+            # e.g. renovate/requests -> RENOVATE/REQUESTS
+            # e.g. renovate/github.com/user/repo -> RENOVATE/GITHUB.COM
+            # This captures "renovate/" followed by characters until the next slash or end of string.
+            {'regex': r'^(renovate\/[^\/]+)', 'task_group_index': 1},
+            # General pattern: any_string/any_string_with_dots_numbers_and_hyphens
+            {'regex': r'^([a-zA-Z_\\-]+)/([a-zA-Z0-9_\\.\\-]+)', 'task_group_index': 2},
             # JIRA-style with more prefixes (e.g., feature/ABC-123)
-            r'^(feature|bug|bugfix|hotfix|fix|chore|task)/([A-Z]+-\\d+)', 
+            {'regex': r'^(feature|bug|bugfix|hotfix|fix|chore|task)/([A-Z]+-\\d+)', 'task_group_index': 2},
              # Numeric with more prefixes (e.g., feature/123)
-            r'^(feature|bug|bugfix|hotfix|fix|chore|task)/(\\d+)',
+            {'regex': r'^(feature|bug|bugfix|hotfix|fix|chore|task)/(\\d+)', 'task_group_index': 2},
             # Just ticket number (e.g., ABC-123)
-            r'^([A-Z]+-\\d+)',
+            {'regex': r'^([A-Z]+-\\d+)', 'task_group_index': 1},
         ]
         
-        for pattern in patterns:
+        for config in patterns_config:
+            pattern = config['regex']
+            task_group_index = config['task_group_index']
             match = re.match(pattern, branch_name, re.IGNORECASE)
             if match:
-                extracted_name = match.group(2) if len(match.groups()) > 1 else match.group(1)
-                return extracted_name.upper() # Standardize to uppercase
-        
+                # Ensure the desired group exists
+                if len(match.groups()) >= task_group_index:
+                    extracted_name = match.group(task_group_index)
+                    return extracted_name.upper() # Standardize to uppercase
+                # Fallback for patterns where group 1 is the main capture if group 'task_group_index' not found (should not happen with correct config)
+                elif match.group(1):
+                     return match.group(1).upper()
+
         logger.debug(f"Could not extract task name from branch '{branch_name}'")
         return None
 
@@ -52,33 +64,6 @@ class PRService:
         except Exception as e:
             logger.error(f"Error getting project from URL {repo_url}: {str(e)}")
             raise ValueError(f"Repository not found: {repo_url}")
-
-    def get_pipeline_status_batch(self, project, mr_list):
-        """Get pipeline status for multiple MRs in batch to reduce API calls."""
-        pipeline_statuses = {}
-        try:
-            # Get recent pipelines for the project (more efficient than per-MR calls)
-            recent_pipelines = project.pipelines.list(
-                per_page=100, 
-                page=1, 
-                order_by='id', 
-                sort='desc',
-                updated_after=(datetime.now() - timedelta(days=7)).isoformat()
-            )
-            
-            # Create a mapping of MR to its latest pipeline
-            for pipeline in recent_pipelines:
-                if hasattr(pipeline, 'ref'):
-                    # Find MRs that match this pipeline's branch
-                    for mr in mr_list:
-                        if mr.source_branch == pipeline.ref:
-                            if mr.iid not in pipeline_statuses:
-                                pipeline_statuses[mr.iid] = pipeline.status
-                            
-        except Exception as e:
-            logger.error(f"Error getting batch pipeline status: {str(e)}")
-            
-        return pipeline_statuses
 
     def get_pr_approval_details(self, mr_object) -> dict:
         """Get approval details for a given merge request object."""
@@ -145,23 +130,30 @@ class PRService:
             
             logger.info(f"Fetched {len(merge_requests)} MRs from {repo_url}")
             
-            # Get pipeline statuses in batch if requested
-            pipeline_statuses = {}
-            logger.info(f"For repo {project.name}, include_pipeline_status is {include_pipeline_status} and number of merge_requests is {len(merge_requests) if merge_requests else 0}")
-            if include_pipeline_status and merge_requests:
-                logger.info(f"Calling get_pipeline_status_batch for {project.name} with {len(merge_requests)} MRs")
-                pipeline_statuses = self.get_pipeline_status_batch(project, merge_requests)
-                logger.info(f"get_pipeline_status_batch for {project.name} returned: {pipeline_statuses}")
-            else:
-                logger.info(f"Skipping get_pipeline_status_batch for {project.name}")
-            
             # Process MRs into PRs
             for mr in merge_requests:
                 task_name = self.extract_task_name(mr.source_branch)
                 
-                # Get pipeline status from batch or set to None
-                pipeline_status = pipeline_statuses.get(mr.iid) if include_pipeline_status else None
-                logger.info(f"For MR {mr.iid} in {project.name}, pipeline_status from batch is: {pipeline_statuses.get(mr.iid)}, final pipeline_status for PR object: {pipeline_status}")
+                pipeline_status_str = None
+                if include_pipeline_status:
+                    try:
+                        # Attempt to get status from head_pipeline attribute
+                        if hasattr(mr, 'head_pipeline') and mr.head_pipeline and 'status' in mr.head_pipeline:
+                            pipeline_status_str = mr.head_pipeline['status']
+                            logger.info(f"For MR {mr.iid} in {project.name}, head_pipeline status: {pipeline_status_str}")
+                        else:
+                            # Fallback: get the latest pipeline for the MR's source branch if head_pipeline is not available
+                            # This might involve an extra API call per MR if head_pipeline is not populated in list view
+                            # To be cautious, ensure the mr object is not lazy-loaded for pipelines()
+                            mr_for_pipeline = project.mergerequests.get(mr.iid) # Get a full MR object
+                            pipelines = mr_for_pipeline.pipelines.list(get_all=False, page=1, per_page=1)
+                            if pipelines:
+                                pipeline_status_str = pipelines[0].status
+                                logger.info(f"For MR {mr.iid} in {project.name}, fallback pipeline status: {pipeline_status_str}")
+                            else:
+                                logger.info(f"For MR {mr.iid} in {project.name}, no pipelines found for source branch.")
+                    except Exception as e:
+                        logger.warning(f"Could not fetch pipeline status for MR {mr.iid} in {project.name}: {e}")
                 
                 # Only get approval details if we have a task name to reduce unnecessary API calls
                 approval_details = {"user_has_approved": False, "approvers": []}
@@ -185,7 +177,7 @@ class PRService:
                     assignees=mr.assignees,
                     labels=mr.labels,
                     task_name=task_name,
-                    pipeline_status=pipeline_status,
+                    pipeline_status=pipeline_status_str,
                     user_has_approved=approval_details["user_has_approved"],
                     approvers=approval_details["approvers"]
                 )
@@ -230,7 +222,7 @@ class PRService:
         logger.info(f"Total PRs fetched: {len(all_prs)}")
         return all_prs
 
-    def unify_prs(self, prs: List[PR], include_single_pr_tasks: bool = False) -> List[UnifiedPR]:
+    def unify_prs(self, prs: List[PR]) -> List[UnifiedPR]:
         """Unify PRs by task name and then by identical branch names for unmatched PRs."""
         unified_prs_map: Dict[str, List[PR]] = {}
         prs_without_task_name: List[PR] = []
@@ -245,7 +237,7 @@ class PRService:
 
         unified_prs_list = []
         for task_name, task_prs in unified_prs_map.items():
-            if include_single_pr_tasks or len(task_prs) > 1:
+            if len(task_prs) > 1:
                 total_changes = sum(getattr(pr_item, 'changes_count', 0) for pr_item in task_prs)
                 total_comments = sum(getattr(pr_item, 'comments_count', 0) for pr_item in task_prs)
                 

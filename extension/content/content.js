@@ -126,23 +126,26 @@ if (document.readyState === "loading") {
 
 // TODO: Make this more robust and configurable. Make sure it matches the backend's task name format.
 function extractTaskName(branchName) {
-    const patterns = [
-        // New general pattern to match backend
-        /^([a-zA-Z_\-]+)\/([a-zA-Z0-9_\-]+)/i, 
+    const patterns_config = [
+        // Renovate branches: group by "renovate/module"
+        {regex: /^(renovate\/[^\/]+)/i, task_group_index: 1},
+        // General pattern: any_string/any_string_with_dots_numbers_and_hyphens
+        {regex: /^([a-zA-Z_\-]+)\/([a-zA-Z0-9_\.\-]+)/i, task_group_index: 2},
         // JIRA-style with more prefixes
-        /^(feature|bug|bugfix|hotfix|fix|chore|task)\/([A-Z]+-\d+)/i, 
+        {regex: /^(feature|bug|bugfix|hotfix|fix|chore|task)\/([A-Z]+-\d+)/i, task_group_index: 2},
         // Numeric with more prefixes
-        /^(feature|bug|bugfix|hotfix|fix|chore|task)\/(\d+)/i, 
+        {regex: /^(feature|bug|bugfix|hotfix|fix|chore|task)\/(\d+)/i, task_group_index: 2},
         // Just ticket number
-        /^([A-Z]+-\d+)/ 
+        {regex: /^([A-Z]+-\d+)/i, task_group_index: 1}
     ];
     
-    for (const pattern of patterns) {
-        const match = branchName.match(pattern);
+    for (const config of patterns_config) {
+        const match = branchName.match(config.regex);
         if (match) {
-            // Prioritize the second group (task identifier) if it exists
-            let taskName = match[2] || match[1];
-            return taskName.toUpperCase(); // Standardize to uppercase
+            const taskName = match[config.task_group_index] || match[1]; // Fallback to group 1 if specific group not found
+            if (taskName) {
+                 return taskName.toUpperCase(); // Standardize to uppercase
+            }
         }
     }
     return null;

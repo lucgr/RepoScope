@@ -1,0 +1,247 @@
+/* General styling for the popup body */
+body {
+    padding: 10px;
+    min-width: 450px; /* Increased min-width slightly */
+    background-color: #f6f8fa; /* Light gray background for the whole popup */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    font-size: 14px;
+    color: #24292e;
+    box-sizing: border-box;
+}
+
+*, *::before, *::after {
+    box-sizing: inherit; /* Apply border-box to all elements */
+}
+
+/* Styling for each Task Group */
+.task-group {
+    background-color: #fff; /* White background for task groups */
+    border: 1px solid #d1d5da; /* Border for task groups */
+    border-radius: 6px; /* Rounded corners for task groups */
+    margin-bottom: 15px; /* Space between task groups */
+    box-shadow: 0 1px 5px rgba(27,31,35,0.075); /* Softer shadow */
+}
+
+/* Styling for Task Headers */
+.task-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px; /* More padding for header */
+    background-color: #f1f3f5; /* Slightly different background for header */
+    border-bottom: 1px solid #d1d5da; /* Separator line */
+    border-top-left-radius: 6px; /* Match parent's border-radius */
+    border-top-right-radius: 6px;
+}
+
+.task-header h3 {
+    margin: 0;
+    font-size: 1.15em; /* Slightly larger task name */
+    font-weight: 600; /* Bolder task name */
+    color: #24292e;
+}
+
+.task-header .pr-count {
+    font-size: 0.9em;
+    color: #586069;
+    margin-left: 8px;
+}
+
+.approve-all-wrapper {
+    /* Wrapper for the approve all button */
+}
+
+.approve-all-btn {
+    padding: 6px 12px;
+    font-size: 0.9em;
+    font-weight: 500;
+    color: #fff;
+    background-color: #2ea44f; /* GitHub green */
+    border: 1px solid rgba(27,31,35,.15);
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.approve-all-btn:hover {
+    background-color: #2c974b;
+}
+
+.approve-all-btn:disabled {
+    background-color: #94d3a2;
+    cursor: not-allowed;
+}
+
+.all-approved {
+    font-size: 0.9em;
+    color: #2ea44f;
+    font-weight: 500;
+}
+
+/* Container for the list of PRs within a task group */
+.prs-list {
+    padding: 0px 5px 5px 5px; /* Padding around the list */
+}
+
+/* General styling for each Pull Request item */
+.pr-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px; /* Padding inside each PR item */
+    margin: 5px; /* Margin around each PR item, creating space from prs-list padding */
+    border: 1px solid #e1e4e8;
+    border-radius: 4px; /* Slightly less rounded corners for items */
+    background-color: #fff;
+    /* box-shadow: 0 1px 3px rgba(0,0,0,0.05); remove per-item shadow if task-group has one */
+}
+
+.pr-item.approved {
+    background-color: #f1fff4; /* Light green for approved PRs */
+    border-left: 3px solid #2ea44f;
+}
+
+/* Container for PR information (repository name and PR title) */
+.pr-header { /* This is the new primary container for text content */
+    flex-grow: 1;
+    min-width: 0; /* CRUCIAL for text-overflow ellipsis to work on children */
+    margin-right: 10px; /* Space between PR info and actions */
+    /* No display:flex needed here, children are block-like */
+}
+
+/* Styling for the PR repository name */
+.repo-name { /* Matched class from pull-requests.js */
+    font-size: 0.85em;
+    color: #586069;
+    margin-bottom: 4px; /* Increased space slightly */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block; /* Ensure it behaves as a block */
+}
+
+/* Styling for the PR title (container div) */
+.pr-title { /* This is a div containing the <a> tag */
+    font-size: 1em;
+    font-weight: 600;
+    line-height: 1.3;
+    /* The <a> tag within will handle its own truncation and color */
+}
+
+/* Styling for the actual PR title link <a> */
+.pr-title a {
+    color: #0366d6;
+    text-decoration: none;
+    display: block; /* Important for ellipsis to work */
+    white-space: nowrap !important; /* Ensure no wrapping, override any conflicting styles */
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pr-title a:hover {
+    text-decoration: underline;
+}
+
+/* Container for PR actions (buttons, statuses) */
+.pr-actions {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0; /* Prevent this section from shrinking */
+    min-width: 230px; /* Increased minimum width for the actions container */
+    box-sizing: border-box;
+}
+
+/* Common styling for elements within pr-actions */
+.pr-actions > * {
+    margin-left: 6px; /* Reduced margin between action items */
+    box-sizing: border-box;
+}
+
+.pr-actions > *:first-child {
+    margin-left: 0;
+}
+
+/* Styling for individual approval button */
+.approve-btn {
+    padding: 5px 10px;
+    font-size: 0.9em;
+    color: #fff;
+    background-color: #28a745; /* Standard green */
+    border: 1px solid rgba(27,31,35,.15);
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    box-sizing: border-box;
+}
+
+.approve-btn:hover {
+    background-color: #218838; /* Darker green on hover */
+}
+
+.approve-btn:disabled {
+    background-color: #a9d8b4; /* Lighter green when disabled */
+    color: #555;
+    cursor: not-allowed;
+}
+
+/* Styling for approval status text (e.g., "Not approved", "Approved") */
+.approval-status {
+    font-size: 0.9em;
+    white-space: nowrap;
+    padding: 3px 4px; /* Reduced horizontal padding */
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.approval-status.approved {
+    color: #1e7e34; /* Darker green text */
+    background-color: #e6ffed; /* Very light green background */
+    /* border: 1px solid #a1deb2; */
+}
+
+.approval-status.not-approved {
+    color: #586069; /* Grayish text */
+    background-color: #f6f8fa; /* Light gray background */
+    /* border: 1px solid #e1e4e8; */
+}
+
+/* Styling for pipeline status badges */
+.pipeline-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.85em; /* Slightly smaller pipeline badge */
+    padding: 3px 4px; /* Reduced horizontal padding */
+    border-radius: 10px; /* More pill-like */
+    white-space: nowrap;
+    font-weight: 500;
+    box-sizing: border-box;
+}
+
+.pipeline-badge .material-icons {
+    font-size: 1.0em; /* Further reduced icon font size */
+    margin-right: 2px; /* Further reduced margin for the icon */
+    line-height: 1; /* Ensure icon aligns well */
+    vertical-align: middle; /* Helps with consistent vertical alignment */
+}
+
+/* Colors for different pipeline statuses - these should match getPipelineStatusClass */
+.pipeline-badge.status-success {
+    background-color: #dbf7e0; /* Lighter green */
+    color: #09691e; /* Darker green text */
+}
+.pipeline-badge.status-failed {
+    background-color: #ffe3e6; /* Lighter red */
+    color: #B00020; /* Darker red text */
+}
+.pipeline-badge.status-running,
+.pipeline-badge.status-pending {
+    background-color: #fff9db; /* Lighter yellow */
+    color: #4b400c; /* Darker yellow/brown text */
+}
+.pipeline-badge.status-unknown,
+.pipeline-badge.status-skipped, /* Added skipped as it's a common status */
+.pipeline-badge.status-manual,
+.pipeline-badge.status-created {
+    background-color: #f6f8fa; /* Light gray */
+    color: #586069; /* Medium gray text */
+} 

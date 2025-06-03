@@ -55,7 +55,7 @@ async def get_unified_prs(
         logger.info(f"Successfully fetched {len(prs)} PRs from repositories")
         
         # For full loads, include all tasks (even single-PR tasks), TODO: remove single PR functionality
-        unified_prs = pr_service.unify_prs(prs, include_single_pr_tasks=full_load)
+        unified_prs = pr_service.unify_prs(prs)
         logger.info(f"Created {len(unified_prs)} unified PR views")
         
         return unified_prs
@@ -82,7 +82,7 @@ async def get_unified_prs_fast(
         logger.info(f"Fast fetch: got {len(prs)} PRs")
         
         # For fast mode, only show multi-PR tasks
-        unified_prs = pr_service.unify_prs(prs, include_single_pr_tasks=False)
+        unified_prs = pr_service.unify_prs(prs)
         logger.info(f"Fast fetch: created {len(unified_prs)} unified PR views")
         
         return unified_prs

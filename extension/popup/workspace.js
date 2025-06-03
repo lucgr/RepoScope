@@ -15,24 +15,27 @@ function extractTaskFromBranch() {
     }
     
     // Extract task ID using patterns
-    const patterns = [
-        // General pattern to match backend
-        /^([a-zA-Z_\-]+)\/([a-zA-Z0-9_\-]+)/i, 
+    const patterns_config = [
+        // Renovate branches: group by "renovate/module"
+        {regex: /^(renovate\/[^\/]+)/i, task_group_index: 1},
+        // General pattern: any_string/any_string_with_dots_numbers_and_hyphens
+        {regex: /^([a-zA-Z_\-]+)\/([a-zA-Z0-9_\.\-]+)/i, task_group_index: 2},
         // JIRA-style with prefix
-        /^(feature|bug|bugfix|hotfix|fix|chore|task)\/([A-Z]+-\d+)/i, 
+        {regex: /^(feature|bug|bugfix|hotfix|fix|chore|task)\/([A-Z]+-\d+)/i, task_group_index: 2},
         // Just JIRA-style
-        /^([A-Z]+-\d+)/i,                                          
+        {regex: /^([A-Z]+-\d+)/i, task_group_index: 1},
         // Numeric ID with prefix
-        /^(feature|bug|bugfix|hotfix|fix|chore|task)\/(\d+)/i      
+        {regex: /^(feature|bug|bugfix|hotfix|fix|chore|task)\/(\d+)/i, task_group_index: 2}
     ];
     
-    for (const pattern of patterns) {
-        const match = branchName.match(pattern);
+    for (const config of patterns_config) {
+        const match = branchName.match(config.regex);
         if (match) {
-            // Use the second group if it exists (task ID), otherwise first group
-            let taskName = match[2] || match[1];
-            taskInput.value = taskName.toUpperCase(); // Standardize to uppercase
-            return;
+            const taskName = match[config.task_group_index] || match[1]; // Fallback to group 1
+            if (taskName) {
+                taskInput.value = taskName.toUpperCase(); // Standardize to uppercase
+                return;
+            }
         }
     }
     
