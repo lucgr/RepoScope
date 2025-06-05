@@ -4,6 +4,7 @@ import logging
 import tempfile
 import shutil
 import random
+import threading
 from typing import List, Tuple, Dict, Any
 from urllib.parse import urlparse, urlunparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -21,6 +22,7 @@ class WorkspaceService:
         """
         self.workspace_root = workspace_root or os.path.join(tempfile.gettempdir(), "virtual_workspaces")
         os.makedirs(self.workspace_root, exist_ok=True)
+        self.git_lock = threading.Lock()
     
     def _run_git_command(self, cmd: List[str], cwd: str = None) -> Tuple[bool, str]:
         """Run a git command and return the result."""
@@ -50,69 +52,57 @@ class WorkspaceService:
             return False, error_msg
     
     def _add_submodule_parallel(self, repo_url: str, workspace_dir: str, gitlab_token: str = None) -> Tuple[bool, str, str]:
-        """Add a single submodule with optimizations."""
+        """Manually add a submodule entry to .gitmodules and create an empty directory, without cloning.
+           Git operations on .gitmodules and index are locked."""
         repo_name_from_url = repo_url.split("/")[-1].replace(".git", "")
-        authenticated_repo_url = repo_url
         
-        if gitlab_token and "gitlab.com" in repo_url:
-            parsed_url = urlparse(repo_url)
-            netloc_with_token = f"oauth2:{gitlab_token}@{parsed_url.hostname}"
-            if parsed_url.port:
-                netloc_with_token += f":{parsed_url.port}"
-            authenticated_repo_url = urlunparse(
-                (parsed_url.scheme, netloc_with_token, parsed_url.path, 
-                 parsed_url.params, parsed_url.query, parsed_url.fragment)
-            )
-            logger.info(f"Using authenticated URL for submodule {repo_name_from_url}")
-        else:
-            logger.info(f"Adding submodule {repo_name_from_url} from {repo_url} (fast shallow clone)...")
+        # The URL written to .gitmodules should always be the original, clean repo_url.
+        # Authenticated URLs are for runtime use only, not for storage in version-controlled files.
+        url_for_gitmodules_file = repo_url
+        
+        logger.info(f"Manually registering submodule {repo_name_from_url} from {url_for_gitmodules_file} (without cloning). Will create empty directory.")
 
-        # Direct shallow clone then register as submodule
-        submodule_path = os.path.join(workspace_dir, repo_name_from_url)
-        
-        # Step 1: Fast shallow clone directly
-        success, output = self._run_git_command(
-            ["git", "clone", 
-             "--depth", "1",           # Shallow clone
-             "--single-branch",        # Only clone the default branch  
-             "--no-tags",             # Skip tags for faster clone
-             authenticated_repo_url, repo_name_from_url], 
-            cwd=workspace_dir
-        )
-        
-        if not success:
-            logger.warning(f"Fast clone failed for {repo_name_from_url}, trying fallback submodule method")
-            # Fallback to traditional submodule add
-            if os.path.exists(submodule_path):
-                try:
-                    shutil.rmtree(submodule_path)
-                except Exception:
-                    pass
-                    
-            success, output = self._run_git_command(
-                ["git", "submodule", "add", authenticated_repo_url, repo_name_from_url], 
-                cwd=workspace_dir
-            )
-            return success, output, repo_name_from_url
-        
-        # Step 2: Register as submodule in .gitmodules
-        gitmodules_path = os.path.join(workspace_dir, ".gitmodules")
-        try:
-            with open(gitmodules_path, "a", encoding='utf-8') as f:
-                f.write(f'''[submodule "{repo_name_from_url}"]
-\tpath = {repo_name_from_url}
-\turl = {repo_url}
-''')
-            
-            # Step 3: Stage the submodule
-            self._run_git_command(["git", "add", repo_name_from_url], cwd=workspace_dir)
-            self._run_git_command(["git", "add", ".gitmodules"], cwd=workspace_dir)
+        submodule_path_in_workspace = repo_name_from_url
+        full_submodule_dir_path = os.path.join(workspace_dir, submodule_path_in_workspace)
 
-            return True, "Fast submodule addition successful", repo_name_from_url
-            
-        except Exception as e:
-            logger.error(f"Failed to register submodule {repo_name_from_url}: {e}")
-            return False, f"Failed to register submodule: {e}", repo_name_from_url
+        with self.git_lock: # Lock for file I/O on .gitmodules and git add operations
+            # Step 1: Append to .gitmodules
+            gitmodules_path = os.path.join(workspace_dir, ".gitmodules")
+            try:
+                with open(gitmodules_path, "a", encoding='utf-8') as f:
+                    f.write(f'[submodule "{repo_name_from_url}"]\n')
+                    f.write(f'\tpath = {submodule_path_in_workspace}\n')
+                    f.write(f'\turl = {url_for_gitmodules_file}\n') # Use the original, clean URL
+                
+                # Stage .gitmodules
+                success_add_modules, output_add_modules = self._run_git_command(["git", "add", ".gitmodules"], cwd=workspace_dir)
+                if not success_add_modules:
+                    logger.error(f"Failed to stage .gitmodules for {repo_name_from_url}: {output_add_modules}")
+                    return False, f"Failed to stage .gitmodules: {output_add_modules}", repo_name_from_url
+
+            except IOError as e:
+                logger.error(f"Failed to write to .gitmodules for {repo_name_from_url}: {e}")
+                return False, f"Failed to write to .gitmodules: {e}", repo_name_from_url
+
+            # Step 2: Create an empty directory for the submodule
+            try:
+                os.makedirs(full_submodule_dir_path, exist_ok=True)
+            except OSError as e:
+                logger.error(f"Failed to create directory for submodule {repo_name_from_url} at {full_submodule_dir_path}: {e}")
+                # If makedirs fails even with exist_ok=True, it's a more serious FS issue or permissions problem.
+                return False, f"Failed to create directory {full_submodule_dir_path}: {e}", repo_name_from_url
+
+            # Step 3: Stage the empty directory as a submodule gitlink
+            # This command tells Git that this path is a submodule.
+            # Git uses the .gitmodules entry to understand its URL.
+            # Because the directory is empty and contains no .git folder, it's an "uninitialized" submodule.
+            success_add_path, output_add_path = self._run_git_command(["git", "add", submodule_path_in_workspace], cwd=workspace_dir)
+            if not success_add_path:
+                logger.error(f"Failed to stage submodule path {submodule_path_in_workspace} for {repo_name_from_url}: {output_add_path}")
+                return False, f"Failed to stage submodule path: {output_add_path}", repo_name_from_url
+
+        logger.info(f"Successfully registered submodule {repo_name_from_url} via manual .gitmodules update and empty directory.")
+        return True, f"Successfully registered submodule {repo_name_from_url}", repo_name_from_url
     
     def create_virtual_workspace(self, branch_name: str, task_name: str, repo_urls: List[str], 
                                  workspace_name: str = None, script_content: str = None, 

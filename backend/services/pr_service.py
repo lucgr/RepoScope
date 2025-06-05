@@ -140,7 +140,7 @@ class PRService:
                         # Attempt to get status from head_pipeline attribute
                         if hasattr(mr, 'head_pipeline') and mr.head_pipeline and 'status' in mr.head_pipeline:
                             pipeline_status_str = mr.head_pipeline['status']
-                            logger.info(f"For MR {mr.iid} in {project.name}, head_pipeline status: {pipeline_status_str}")
+                            # logger.info(f"For MR {mr.iid} in {project.name}, head_pipeline status: {pipeline_status_str}")
                         else:
                             # Fallback: get the latest pipeline for the MR's source branch if head_pipeline is not available
                             # This might involve an extra API call per MR if head_pipeline is not populated in list view

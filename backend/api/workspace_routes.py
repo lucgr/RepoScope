@@ -7,6 +7,7 @@ import shutil
 import os
 import tempfile
 import time
+import zipfile
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -32,6 +33,57 @@ def cleanup_files(workspace_path: str, zip_path: str):
 
 def get_workspace_service():
     return WorkspaceService()
+
+def create_zip_excluding_git_folders(zip_file_path: str, root_dir: str, base_dir: str, logger_instance):
+    """
+    Creates a zip file from base_dir, excluding .git folders from submodules.
+    zip_file_path: Full path for the output zip file.
+    root_dir: The directory that base_dir is relative to. Files in zip will be relative to this.
+    base_dir: The specific directory to archive.
+    logger_instance: Logger for logging messages.
+    """
+    workspace_to_archive = os.path.join(root_dir, base_dir)
+    logger_instance.info(f"Starting custom zip creation for {workspace_to_archive}, excluding submodule .git folders.")
+    
+    with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
+        for dirpath, dirnames, filenames in os.walk(workspace_to_archive, topdown=True):
+            # Exclude .git directories from submodules
+            # dirpath is the current directory being walked.
+            # workspace_to_archive is the root of the workspace (e.g., /tmp/virtual_workspaces/task_xyz_123)
+            # We want to include the main .git directory of the workspace itself,
+            # but exclude .git directories from any sub-directories (if they were to exist).
+            if '.git' in dirnames and dirpath != workspace_to_archive:
+                logger_instance.info(f"Excluding .git folder found in {os.path.join(dirpath, '.git')}")
+                dirnames.remove('.git') # Don't descend into this .git directory
+                
+            for filename in filenames:
+                file_path_absolute = os.path.join(dirpath, filename)
+                # arcname should be relative to root_dir, ensuring paths in zip start with base_dir
+                arcname = os.path.relpath(file_path_absolute, root_dir)
+                try:
+                    zf.write(file_path_absolute, arcname)
+                except FileNotFoundError:
+                    logger_instance.warning(f"File not found during zipping, possibly a broken symlink or temp file: {file_path_absolute}")
+
+
+            # Add empty directories that might have become empty after .git exclusion
+            # or were empty to begin with (like our uninitialized submodules).
+            if not filenames and not dirnames: 
+                arc_dir_path = os.path.relpath(dirpath, root_dir)
+                # Create a ZipInfo object for the directory to ensure it's explicitly created in the zip
+                dir_info = zipfile.ZipInfo(arc_dir_path + '/') 
+                # Basic directory permissions (drwxr-xr-x). os.walk doesn't give perms for empty dirs easily.
+                dir_info.external_attr = 0o40755 << 16 
+                # Ensure we are not trying to add the root of the archive itself as an empty dir entry
+                # if base_dir is not empty. If base_dir itself is an empty folder, it should be added.
+                # An empty base_dir (workspace) is unlikely but technically possible.
+                # The check os.path.join(root_dir, arc_dir_path) != workspace_to_archive or not os.listdir(workspace_to_archive)
+                # ensures that if the current dirpath IS the workspace_to_archive, it's only added if it's truly empty.
+                # More simply, just add any empty dir found.
+                zf.writestr(dir_info, '')
+
+    logger_instance.info(f"Custom zip creation completed for {zip_file_path}")
+    return zip_file_path
 
 @router.post("/create")
 async def create_virtual_workspace(
@@ -86,14 +138,21 @@ async def create_virtual_workspace(
         # Define where the zip file will be created temporarily
         # Needs to be in a place the app can write, /tmp is good in Cloud Run
         temp_zip_base_path = os.path.join(tempfile.gettempdir(), f"{safe_name}_archive_{int(time.time())}")
+        zip_file_target_path = f"{temp_zip_base_path}.zip" # Path for the final zip file
 
-        logger.info(f"📦 Starting ZIP creation: {workspace_dir_path} -> {temp_zip_base_path}.zip") # TODO: do actual time measurements here
+        logger.info(f"📦 Starting ZIP creation: {workspace_dir_path} -> {zip_file_target_path}") # TODO: do actual time measurements here
         try:
-            zip_file_path = shutil.make_archive(
-                base_name=temp_zip_base_path, 
-                format='zip',              
-                root_dir=archive_root_dir,  
-                base_dir=archive_base_dir  
+            # zip_file_path = shutil.make_archive(
+            #     base_name=temp_zip_base_path, 
+            #     format='zip',              
+            #     root_dir=archive_root_dir,  
+            #     base_dir=archive_base_dir  
+            # )
+            zip_file_path = create_zip_excluding_git_folders(
+                zip_file_path=zip_file_target_path, # Pass the full target path
+                root_dir=archive_root_dir,
+                base_dir=archive_base_dir,
+                logger_instance=logger
             )
             zip_file_path_for_cleanup = zip_file_path # Keep track for potential background cleanup
 

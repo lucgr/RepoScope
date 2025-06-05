@@ -3,6 +3,14 @@
 # multi-repo.sh - A wrapper for managing multiple repositories in a virtual workspace
 # This script provides easy command aliases and extensibility for operations across repos
 
+# Source .env file if it exists to load environment variables like GITLAB_PAT
+if [ -f ".env" ]; then
+    echo -e "${BLUE}Sourcing environment variables from .env file...${NC}"
+    set -a # Automatically export all variables subsequently set or modified
+    source ./.env
+    set +a # Disable auto-export
+fi
+
 # Define colors for output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -53,52 +61,84 @@ shift  # Remove the command from the arguments
 case "$COMMAND" in
     init)
         echo -e "${BLUE}=== Initializing all submodules ===${NC}"
-        git submodule update --recursive --init
-        if [ $? -eq 0 ]; then
-            echo -e "${GREEN}All submodules initialized successfully${NC}"
-            
-            # Get current branch of the main repository
-            MAIN_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-            echo -e "${BLUE}Setting all submodules to branch: ${GREEN}$MAIN_BRANCH${NC}"
-            
-            # Get current directory
-            CURRENT_DIR=$(pwd)
-            
-            # Get list of submodules
-            SUBMODULES=$(git config --file .gitmodules --get-regexp path | awk '{ print $2 }')
-            
-            # Set branch in each submodule
-            for SUBMODULE in $SUBMODULES; do
-                if [ -d "$SUBMODULE" ]; then
-                    echo -e "${BLUE}Checking out branch in ${YELLOW}$SUBMODULE${NC}"
-                    cd "$SUBMODULE" || continue
-                    
-                    # Check if branch exists
-                    if git show-ref --verify --quiet refs/heads/$MAIN_BRANCH; then
-                        # Branch exists, check it out
-                        git checkout $MAIN_BRANCH
-                        echo -e "  ${GREEN}Checked out existing branch: $MAIN_BRANCH${NC}"
-                    else
-                        # Check if remote branch exists
-                        if git ls-remote --heads origin $MAIN_BRANCH | grep -q $MAIN_BRANCH; then
-                            # Remote branch exists, create tracking branch
-                            git checkout -b $MAIN_BRANCH --track origin/$MAIN_BRANCH
-                            echo -e "  ${GREEN}Created and checked out tracking branch: $MAIN_BRANCH${NC}"
-                        else
-                            # Create new branch
-                            git checkout -b $MAIN_BRANCH
-                            echo -e "  ${GREEN}Created and checked out new branch: $MAIN_BRANCH${NC}"
-                        fi
-                    fi
-                    
-                    # Return to main directory
-                    cd "$CURRENT_DIR" || exit
-                fi
-            done
-        else
-            echo -e "${RED}Failed to initialize submodules${NC}"
+
+        if [ ! -f ".gitmodules" ]; then
+            echo -e "${RED}ERROR: .gitmodules file not found. Cannot initialize submodules.${NC}"
             exit 1
         fi
+
+        # Get submodule paths
+        SUBMODULE_PATHS=$(git config --file .gitmodules --get-regexp path | awk '{ print $2 }')
+        
+        # Clean up any existing empty directories
+        for path in $SUBMODULE_PATHS; do
+            if [ -d "$path" ]; then
+                rmdir "$path" 2>/dev/null || rm -rf "$path"
+            fi
+        done
+
+        # Initialize submodule configuration
+        git submodule init
+
+        # Clone submodules and add as proper gitlinks
+        for path in $SUBMODULE_PATHS; do
+            submodule_url=$(git config --file .gitmodules --get-regexp "submodule\..*\.path" | awk -v p="$path" '$2 == p { gsub(/\.path$/, ".url", $1); print $1; exit }' | xargs git config --file .gitmodules)
+            
+            if [ -n "$submodule_url" ]; then
+                echo -e "${BLUE}Cloning ${YELLOW}$path${NC}..."
+                if git clone "$submodule_url" "$path"; then
+                    # Get the current commit and add as gitlink
+                    current_commit=$(git -C "$path" rev-parse HEAD)
+                    rm -rf "$path/.git"
+                    git update-index --add --cacheinfo 160000 "$current_commit" "$path"
+                    # Restore the .git directory for branch operations
+                    git clone "$submodule_url" "${path}_temp" --quiet
+                    mv "${path}_temp/.git" "$path/"
+                    rm -rf "${path}_temp"
+                else
+                    echo -e "${RED}Failed to clone $path${NC}"
+                    exit 1
+                fi
+            fi
+        done
+
+        echo -e "${GREEN}All submodules cloned successfully${NC}"
+
+        # Set branch in each submodule
+        MAIN_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+        echo -e "${BLUE}Setting all submodules to branch: ${GREEN}$MAIN_BRANCH${NC}"
+        
+        CURRENT_DIR=$(pwd)
+        
+        for SUBMODULE in $SUBMODULE_PATHS; do
+            if [ -d "$SUBMODULE" ] && [ -e "$SUBMODULE/.git" ]; then
+                echo -e "${BLUE}Checking out branch in ${YELLOW}$SUBMODULE${NC}"
+                cd "$SUBMODULE" || continue
+                
+                # Check if branch exists
+                if git show-ref --verify --quiet "refs/heads/$MAIN_BRANCH"; then
+                    # Branch exists, check it out
+                    git checkout "$MAIN_BRANCH"
+                    echo -e "  ${GREEN}Checked out existing branch: $MAIN_BRANCH${NC}"
+                else
+                    # Check if remote branch exists
+                    if git ls-remote --heads origin "$MAIN_BRANCH" | grep -q "$MAIN_BRANCH"; then
+                        # Remote branch exists, create tracking branch
+                        git checkout -b "$MAIN_BRANCH" --track "origin/$MAIN_BRANCH"
+                        echo -e "  ${GREEN}Created and checked out tracking branch: $MAIN_BRANCH${NC}"
+                    else
+                        # Create new branch
+                        git checkout -b "$MAIN_BRANCH"
+                        echo -e "  ${GREEN}Created and checked out new branch: $MAIN_BRANCH${NC}"
+                    fi
+                fi
+                
+                # Return to main directory
+                cd "$CURRENT_DIR" || exit
+            fi
+        done
+        
+        echo -e "${GREEN}All submodules initialized successfully!${NC}"
         ;;
         
     commit)

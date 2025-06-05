@@ -81,11 +81,9 @@ The extension requires a backend server to fetch and unify PR data and create vi
 **Option 1: Local Setup**
 
 ```bash
-# Navigate to the backend directory
-cd backend
 
 # Install dependencies (ideally in a virtual environment)
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 
 # Run the server (Uvicorn will typically run on http://localhost:8000)
 uvicorn backend.main:app --reload
