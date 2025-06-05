@@ -6,7 +6,6 @@ import shutil
 import random
 import threading
 from typing import List, Tuple, Dict, Any
-from urllib.parse import urlparse, urlunparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 

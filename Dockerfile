@@ -29,11 +29,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # This ensures that this subdirectory is treated as the main package
 COPY backend /app/service_code
 
-# Make port 8080 available
-EXPOSE 8080
+# Make port 8000 available
+EXPOSE 8000
 
 # ENV PORT 8000 is fine, Cloud Run will override with its own PORT (usually 8080)
-ENV PORT 8000
+ENV PORT=8000
 
 # Run main.py when the container launches
 # The application is now 'service_code.main:app'

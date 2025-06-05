@@ -78,25 +78,31 @@ MultiRepoHub solves the challenge of managing code changes across multiple repos
 
 The extension requires a backend server to fetch and unify PR data and create virtual workspaces.
 
-**Option 1: Local Setup**
+**Option 1: Local Development Setup**
 
 ```bash
-
 # Install dependencies (ideally in a virtual environment)
 pip install -r backend/requirements.txt
 
 # Run the server (Uvicorn will typically run on http://localhost:8000)
 uvicorn backend.main:app --reload
 ```
+
+**Option 2: Docker Setup (Recommended)**
+
+```bash
+# Build and run with port mapping (one command)
+docker run -it -p 8000:8000 $(docker build -q .)
+
+# Or alternatively, build and run separately
+docker build -t multirepo-backend .
+docker run -it -p 8000:8000 multirepo-backend
+
+# Run in background (detached mode)
+docker run -d -p 8000:8000 $(docker build -q .)
+```
+
 Make sure your extension's Backend URL setting points to `http://localhost:8000`.
-
-**Option 2: Run through the deployed Cloud Run instance**
-
-The backend is designed to be containerized and can be deployed to services like Google Cloud Run. A `Dockerfile` is provided in the root of the project.
-A publicly accessible instance of the backend is available for demonstration or use (ensure you trust its operator if using with private repositories):
-**Public Cloud Run URL:** [`https://multirepohub-backend-elmr3u3lwa-ez.a.run.app`](https://multirepohub-backend-elmr3u3lwa-ez.a.run.app)
-
-If using a deployed backend, update the Backend URL in the extension settings accordingly.
 
 
 ## Technical Details

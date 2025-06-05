@@ -124,19 +124,14 @@ function copyToClipboard(text, callback) {
 // Helper to fetch all accessible GitLab repos with pagination
 async function fetchAllGitLabRepos(gitlabToken) {
     let repos = [];
-    let page = 1;
-    let perPage = 100;
-    let more = true;
-    while (more) {
-        const resp = await fetch(`https://gitlab.com/api/v4/projects?membership=true&simple=true&per_page=${perPage}&page=${page}`, {
-            headers: { "Authorization": `Bearer ${gitlabToken}` }
-        });
-        if (!resp.ok) throw new Error("Failed to fetch repositories from GitLab");
-        const data = await resp.json();
-        repos = repos.concat(data);
-        more = data.length === perPage;
-        page++;
-    }
+    const perPage = 20; // Limit to 20 repos
+    // Fetch only the first page
+    const resp = await fetch(`https://gitlab.com/api/v4/projects?membership=true&simple=true&per_page=${perPage}&page=1`, {
+        headers: { "Authorization": `Bearer ${gitlabToken}` }
+    });
+    if (!resp.ok) throw new Error("Failed to fetch repositories from GitLab");
+    const data = await resp.json();
+    repos = data; // Assign directly, no concat needed for single page
     return Array.from(new Set(repos.map(r => r.http_url_to_repo).filter(Boolean)));
 }
 
