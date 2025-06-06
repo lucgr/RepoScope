@@ -8,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/workspace", tags=["workspace"])
 
-# Removed cleanup functions and workspace service as we no longer use ZIP files or server-side workspaces
 
 @router.post("/prepare")
 async def prepare_workspace_command(
@@ -21,7 +20,7 @@ async def prepare_workspace_command(
         task_name = request.get('task_name')
         repo_urls = request.get('repo_urls', [])
         workspace_name = request.get('workspace_name')
-        script_content = request.get('script_content')
+        # script_content = request.get('script_content')
         
         if not x_gitlab_token:
             logger.warning("Missing GitLab token")

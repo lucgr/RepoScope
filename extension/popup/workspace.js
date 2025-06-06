@@ -264,7 +264,7 @@ function createVirtualWorkspace() {
                                 }, 1500);
                             }).catch(function() {
                                 // Fallback to execCommand
-                                const success = document.execCommand('copy');
+                                const success = document.execCommand("copy");
                                 if (success) {
                                     copyBtn.textContent = "Copied!";
                                     copyBtn.style.backgroundColor = "#27ae60";
@@ -273,13 +273,13 @@ function createVirtualWorkspace() {
                                         copyBtn.style.backgroundColor = "#007cba";
                                     }, 1500);
                                 } else {
-                                    alert('Copy failed. Please select the text manually and copy.');
+                                    alert("Copy failed. Please select the text manually and copy.");
                                 }
                             });
                         } catch (err) {
                             // Final fallback
                             try {
-                                const success = document.execCommand('copy');
+                                const success = document.execCommand("copy");
                                 if (success) {
                                     copyBtn.textContent = "Copied!";
                                     copyBtn.style.backgroundColor = "#27ae60";
@@ -288,10 +288,10 @@ function createVirtualWorkspace() {
                                         copyBtn.style.backgroundColor = "#007cba";
                                     }, 1500);
                                 } else {
-                                    alert('Copy failed. Please select the text manually and copy.');
+                                    alert("Copy failed. Please select the text manually and copy.");
                                 }
                             } catch (execErr) {
-                                alert('Copy failed. Please select the text manually and copy.');
+                                alert("Copy failed. Please select the text manually and copy.");
                             }
                         }
                     }
@@ -664,8 +664,8 @@ function copyToClipboard(text) {
             button.style.backgroundColor = "#007cba";
         }, 1500);
     }).catch(function(err) {
-        console.error('Could not copy text: ', err);
-        alert('Failed to copy to clipboard');
+        console.error("Could not copy text: ", err);
+        alert("Failed to copy to clipboard");
     });
 }
 

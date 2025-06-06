@@ -55,8 +55,6 @@ class WorkspaceService:
            Git operations on .gitmodules and index are locked."""
         repo_name_from_url = repo_url.split("/")[-1].replace(".git", "")
         
-        # The URL written to .gitmodules should always be the original, clean repo_url.
-        # Authenticated URLs are for runtime use only, not for storage in version-controlled files.
         url_for_gitmodules_file = repo_url
         
         logger.info(f"Manually registering submodule {repo_name_from_url} from {url_for_gitmodules_file} (without cloning). Will create empty directory.")
@@ -65,7 +63,7 @@ class WorkspaceService:
         full_submodule_dir_path = os.path.join(workspace_dir, submodule_path_in_workspace)
 
         with self.git_lock: # Lock for file I/O on .gitmodules and git add operations
-            # Step 1: Append to .gitmodules
+            # Append to .gitmodules
             gitmodules_path = os.path.join(workspace_dir, ".gitmodules")
             try:
                 with open(gitmodules_path, "a", encoding='utf-8') as f:
@@ -83,7 +81,7 @@ class WorkspaceService:
                 logger.error(f"Failed to write to .gitmodules for {repo_name_from_url}: {e}")
                 return False, f"Failed to write to .gitmodules: {e}", repo_name_from_url
 
-            # Step 2: Create an empty directory for the submodule
+            # Create an empty directory for the submodule
             try:
                 os.makedirs(full_submodule_dir_path, exist_ok=True)
             except OSError as e:
@@ -91,10 +89,7 @@ class WorkspaceService:
                 # If makedirs fails even with exist_ok=True, it's a more serious FS issue or permissions problem.
                 return False, f"Failed to create directory {full_submodule_dir_path}: {e}", repo_name_from_url
 
-            # Step 3: Stage the empty directory as a submodule gitlink
-            # This command tells Git that this path is a submodule.
-            # Git uses the .gitmodules entry to understand its URL.
-            # Because the directory is empty and contains no .git folder, it's an "uninitialized" submodule.
+            # Stage the empty directory as a submodule gitlink
             success_add_path, output_add_path = self._run_git_command(["git", "add", submodule_path_in_workspace], cwd=workspace_dir)
             if not success_add_path:
                 logger.error(f"Failed to stage submodule path {submodule_path_in_workspace} for {repo_name_from_url}: {output_add_path}")
@@ -128,7 +123,7 @@ class WorkspaceService:
 
         if os.path.exists(workspace_dir):
             try:
-                # Just in case the exact same timestamp exists (very unlikely)
+                # Just in case the exact same timestamp exists
                 shutil.rmtree(workspace_dir)
                 logger.info(f"Removed existing workspace directory: {workspace_dir}")
             except Exception as e:
