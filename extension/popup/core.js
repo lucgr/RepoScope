@@ -121,7 +121,7 @@ function copyToClipboard(text, callback) {
         });
 }
 
-// Helper to fetch all accessible GitLab repos with pagination
+// Helper to fetch all accessible GitLab repos with pagination, this could be moved to the backend
 async function fetchAllGitLabRepos(gitlabToken) {
     let repos = [];
     const perPage = 20; // Limit to 20 repos
