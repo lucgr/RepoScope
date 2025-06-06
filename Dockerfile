@@ -16,8 +16,8 @@ RUN apt-get update && \
 
 # Configure git user details for commits made within the container
 # TODO: Make this configurable?
-RUN git config --global user.email "MultiRepoHubBackend@noreply.com" && \ 
-    git config --global user.name "MultiRepoHub Workspace Backend"
+RUN git config --global user.email "noreply@multirepohub.local" && \ 
+    git config --global user.name "MultiRepoHub Virtual Workspace"
 
 # Copy the requirements file into the container at /app
 COPY backend/requirements.txt .

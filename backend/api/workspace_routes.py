@@ -113,8 +113,8 @@ cd {safe_name}
 
 # Initialize git repository
 git init
-git config user.name "RepoScope Virtual Workspace"
-git config user.email "noreply@reposcope.local"
+git config user.name "MultiRepoHub Virtual Workspace"
+git config user.email "noreply@multirepohub.local"
 
 # Create and checkout branch
 git checkout -b {branch_name}
