@@ -243,57 +243,14 @@ function createVirtualWorkspace() {
                 </div>
             `;
             
-            // Add click event listener for copy button to avoid inline onclick issues
+            // Add click event listener for copy button
             const copyBtn = document.getElementById("copy-command-btn");
             if (copyBtn) {
                 copyBtn.addEventListener("click", function(event) {
                     event.preventDefault();
                     const commandDisplay = document.getElementById("command-display");
                     if (commandDisplay) {
-                        // Try to select and copy the text
-                        commandDisplay.select();
-                        commandDisplay.setSelectionRange(0, 99999); // For mobile devices
-                        
-                        try {
-                            navigator.clipboard.writeText(commandDisplay.value).then(function() {
-                                copyBtn.textContent = "Copied!";
-                                copyBtn.style.backgroundColor = "#27ae60";
-                                setTimeout(() => {
-                                    copyBtn.textContent = "Copy";
-                                    copyBtn.style.backgroundColor = "#007cba";
-                                }, 1500);
-                            }).catch(function() {
-                                // Fallback to execCommand
-                                const success = document.execCommand("copy");
-                                if (success) {
-                                    copyBtn.textContent = "Copied!";
-                                    copyBtn.style.backgroundColor = "#27ae60";
-                                    setTimeout(() => {
-                                        copyBtn.textContent = "Copy";
-                                        copyBtn.style.backgroundColor = "#007cba";
-                                    }, 1500);
-                                } else {
-                                    alert("Copy failed. Please select the text manually and copy.");
-                                }
-                            });
-                        } catch (err) {
-                            // Final fallback
-                            try {
-                                const success = document.execCommand("copy");
-                                if (success) {
-                                    copyBtn.textContent = "Copied!";
-                                    copyBtn.style.backgroundColor = "#27ae60";
-                                    setTimeout(() => {
-                                        copyBtn.textContent = "Copy";
-                                        copyBtn.style.backgroundColor = "#007cba";
-                                    }, 1500);
-                                } else {
-                                    alert("Copy failed. Please select the text manually and copy.");
-                                }
-                            } catch (execErr) {
-                                alert("Copy failed. Please select the text manually and copy.");
-                            }
-                        }
+                        copyToClipboard(commandDisplay.value, copyBtn, commandDisplay);
                     }
                 });
             }
@@ -304,8 +261,7 @@ function createVirtualWorkspace() {
                 task: taskName,
                 repos: selectedRepos,
                 created_at: new Date().toISOString(),
-                branch: branchName,
-                command: data.command
+                branch: branchName
             };
             addWorkspaceToHistory(workspaceData);
             
@@ -330,8 +286,10 @@ function loadWorkspaceHistory() {
     if (!historyContainer) return;
     
     // Get workspace history from storage
-    chrome.storage.sync.get(["workspaceHistory"], function(data) {
+    chrome.storage.local.get(["workspaceHistory"], function(data) {
+        console.log("Loading workspace history from storage:", data.workspaceHistory);
         const history = data.workspaceHistory || [];
+        console.log("History length:", history.length);
         
         // Clear container
         historyContainer.innerHTML = "";
@@ -570,10 +528,11 @@ function cloneWorkspaceFromHistory(workspace, button, historyContainer) {
             // Add click event listener for the copy button
             const historyCopyBtn = document.getElementById(statusMessageId);
             if (historyCopyBtn) {
-                historyCopyBtn.addEventListener("click", function() {
+                historyCopyBtn.addEventListener("click", function(event) {
+                    event.preventDefault();
                     const commandDisplay = document.getElementById(`history-command-display-${statusMessageId}`);
                     if (commandDisplay) {
-                        copyToClipboard(commandDisplay.value);
+                        copyToClipboard(commandDisplay.value, historyCopyBtn, commandDisplay);
                     }
                 });
             }
@@ -604,7 +563,11 @@ function cloneWorkspaceFromHistory(workspace, button, historyContainer) {
 
 // Function to add workspace to history
 function addWorkspaceToHistory(workspace) {
-    if (!workspace || !workspace.name) return;
+    console.log("Adding workspace to history:", workspace);
+    if (!workspace || !workspace.name) {
+        console.log("Invalid workspace or missing name, returning");
+        return;
+    }
     // Ensure repos is an array
     if (workspace.repos && !Array.isArray(workspace.repos)) {
         if (typeof workspace.repos === "string") {
@@ -614,11 +577,13 @@ function addWorkspaceToHistory(workspace) {
         }
     }
     
-    chrome.storage.sync.get(["workspaceHistory"], function(data) {
+    chrome.storage.local.get(["workspaceHistory"], function(data) {
+        console.log("Current history from storage:", data.workspaceHistory);
         const history = data.workspaceHistory || [];
         
         // Add new workspace
         history.push(workspace);
+        console.log("Updated history:", history);
         
         // Limit history size to 10 items
         if (history.length > 10) {
@@ -626,7 +591,12 @@ function addWorkspaceToHistory(workspace) {
         }
         
         // Save updated history
-        chrome.storage.sync.set({ workspaceHistory: history }, function() {
+        chrome.storage.local.set({ workspaceHistory: history }, function() {
+            if (chrome.runtime.lastError) {
+                console.error("Error saving to chrome.storage:", chrome.runtime.lastError);
+                return;
+            }
+            console.log("Successfully saved history to storage");
             // Reload history
             loadWorkspaceHistory();
         });
@@ -637,36 +607,68 @@ function addWorkspaceToHistory(workspace) {
 function removeWorkspaceFromHistory(workspaceName) {
     if (!workspaceName) return;
     
-    chrome.storage.sync.get(["workspaceHistory"], function(data) {
+    chrome.storage.local.get(["workspaceHistory"], function(data) {
         const history = data.workspaceHistory || [];
         
         // Find and remove the workspace with the matching name
         const updatedHistory = history.filter(workspace => workspace.name !== workspaceName);
         
         // Save updated history
-        chrome.storage.sync.set({ workspaceHistory: updatedHistory }, function() {
+        chrome.storage.local.set({ workspaceHistory: updatedHistory }, function() {
             // Reload history to update UI
             loadWorkspaceHistory();
         });
     });
 }
 
-// Copy to clipboard function
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(function() {
-        // Show temporary feedback
-        const button = event.target;
+// Robust copy to clipboard function with multiple fallbacks
+function copyToClipboard(text, button, textElement) {
+    // Select the text if a text element is provided
+    if (textElement) {
+        textElement.select();
+        textElement.setSelectionRange(0, 99999); // For mobile devices
+    }
+    
+    try {
+        // Try the modern clipboard API first
+        navigator.clipboard.writeText(text).then(function() {
+            showCopySuccess(button);
+        }).catch(function() {
+            // Fallback to execCommand
+            const success = document.execCommand("copy");
+            if (success) {
+                showCopySuccess(button);
+            } else {
+                alert("Copy failed. Please select the text manually and copy.");
+            }
+        });
+    } catch (err) {
+        // Final fallback
+        try {
+            const success = document.execCommand("copy");
+            if (success) {
+                showCopySuccess(button);
+            } else {
+                alert("Copy failed. Please select the text manually and copy.");
+            }
+        } catch (execErr) {
+            alert("Copy failed. Please select the text manually and copy.");
+        }
+    }
+}
+
+// Helper function to show copy success feedback
+function showCopySuccess(button) {
+    if (button) {
         const originalText = button.textContent;
+        const originalColor = button.style.backgroundColor;
         button.textContent = "Copied!";
         button.style.backgroundColor = "#27ae60";
         setTimeout(() => {
             button.textContent = originalText;
-            button.style.backgroundColor = "#007cba";
+            button.style.backgroundColor = originalColor || "#007cba";
         }, 1500);
-    }).catch(function(err) {
-        console.error("Could not copy text: ", err);
-        alert("Failed to copy to clipboard");
-    });
+    }
 }
 
 // Export functions for use in other modules
