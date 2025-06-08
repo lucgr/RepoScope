@@ -60,7 +60,7 @@ shift  # Remove the command from the arguments
 # Process commands
 case "$COMMAND" in
     init)
-        echo -e "${BLUE}=== Initializing all submodules ===${NC}"
+        echo -e "${BLUE}=== Initializing all submodules in parallel ===${NC}"
 
         if [ ! -f ".gitmodules" ]; then
             echo -e "${RED}ERROR: .gitmodules file not found. Cannot initialize submodules.${NC}"
@@ -70,75 +70,110 @@ case "$COMMAND" in
         # Get submodule paths
         SUBMODULE_PATHS=$(git config --file .gitmodules --get-regexp path | awk '{ print $2 }')
         
-        # Clean up any existing empty directories
+        # Clean up any existing directories to ensure a fresh clone
         for path in $SUBMODULE_PATHS; do
             if [ -d "$path" ]; then
-                rmdir "$path" 2>/dev/null || rm -rf "$path"
+                echo -e "${YELLOW}Removing existing directory: $path${NC}"
+                rm -rf "$path"
             fi
         done
 
-        # Initialize submodule configuration
+        # Initialize submodule configuration in .git/config. This reads .gitmodules
+        # and prepares git for submodule operations.
         git submodule init
 
-        # Clone submodules and add as proper gitlinks
-        for path in $SUBMODULE_PATHS; do
-            submodule_url=$(git config --file .gitmodules --get-regexp "submodule\..*\.path" | awk -v p="$path" '$2 == p { gsub(/\.path$/, ".url", $1); print $1; exit }' | xargs git config --file .gitmodules)
-            
-            if [ -n "$submodule_url" ]; then
-                echo -e "${BLUE}Cloning ${YELLOW}$path${NC}..."
-                if git clone "$submodule_url" "$path"; then
-                    # Get the current commit and add as gitlink
-                    current_commit=$(git -C "$path" rev-parse HEAD)
-                    rm -rf "$path/.git"
-                    git update-index --add --cacheinfo 160000 "$current_commit" "$path"
-                    # Restore the .git directory for branch operations
-                    git clone "$submodule_url" "${path}_temp" --quiet
-                    mv "${path}_temp/.git" "$path/"
-                    rm -rf "${path}_temp"
-                else
-                    echo -e "${RED}Failed to clone $path${NC}"
-                    exit 1
-                fi
-            fi
-        done
-
-        echo -e "${GREEN}All submodules cloned successfully${NC}"
-
-        # Set branch in each submodule
         MAIN_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-        echo -e "${BLUE}Setting all submodules to branch: ${GREEN}$MAIN_BRANCH${NC}"
+        echo -e "${BLUE}Main branch detected: ${GREEN}$MAIN_BRANCH${NC}. Will use this for all submodules."
         
-        CURRENT_DIR=$(pwd)
-        
-        for SUBMODULE in $SUBMODULE_PATHS; do
-            if [ -d "$SUBMODULE" ] && [ -e "$SUBMODULE/.git" ]; then
-                echo -e "${BLUE}Checking out branch in ${YELLOW}$SUBMODULE${NC}"
-                cd "$SUBMODULE" || continue
+        # This function will be run in parallel for each submodule.
+        # It clones the repository and sets it to the correct branch.
+        clone_and_setup_submodule() {
+            local path=$1
+            local main_branch=$2
+            
+            local submodule_url
+            submodule_url=$(git config --file .gitmodules --get-regexp "submodule\..*\.path" | awk -v p="$path" '$2 == p { gsub(/\.path$/, ".url", $1); print $1; exit }' | xargs git config -f .gitmodules)
+            
+            if [ -z "$submodule_url" ]; then
+                echo -e "${RED}Could not find URL for submodule $path${NC}" >&2
+                return 1
+            fi
+
+            echo -e "${BLUE}Cloning ${YELLOW}$path${NC}..."
+            if ! git clone --quiet "$submodule_url" "$path"; then
+                echo -e "${RED}Failed to clone $path from $submodule_url${NC}" >&2
+                return 1
+            fi
+            
+            # Now, set up the branch inside the newly cloned repository.
+            # We must 'cd' into the directory to perform git operations for that repo.
+            # Running this in a subshell `(...)` sandboxes the 'cd'.
+            (
+                cd "$path" || return 1
                 
-                # Check if branch exists
-                if git show-ref --verify --quiet "refs/heads/$MAIN_BRANCH"; then
-                    # Branch exists, check it out
-                    git checkout "$MAIN_BRANCH"
-                    echo -e "  ${GREEN}Checked out existing branch: $MAIN_BRANCH${NC}"
+                echo -e "${BLUE}Setting branch for ${YELLOW}$path${NC} to ${GREEN}$main_branch${NC}"
+                # Check if branch exists locally. (Should not, after a fresh clone, unless it's the default branch)
+                if git show-ref --verify --quiet "refs/heads/$main_branch"; then
+                    git checkout "$main_branch" --quiet
+                    echo -e "  ${GREEN}Switched to existing branch '$main_branch' in $path${NC}"
+                # Check if branch exists on remote 'origin'
+                elif git ls-remote --heads origin "$main_branch" | grep -q "$main_branch"; then
+                    git checkout -b "$main_branch" --track "origin/$main_branch" --quiet
+                    echo -e "  ${GREEN}Created tracking branch for 'origin/$main_branch' in $path${NC}"
                 else
-                    # Check if remote branch exists
-                    if git ls-remote --heads origin "$MAIN_BRANCH" | grep -q "$MAIN_BRANCH"; then
-                        # Remote branch exists, create tracking branch
-                        git checkout -b "$MAIN_BRANCH" --track "origin/$MAIN_BRANCH"
-                        echo -e "  ${GREEN}Created and checked out tracking branch: $MAIN_BRANCH${NC}"
-                    else
-                        # Create new branch
-                        git checkout -b "$MAIN_BRANCH"
-                        echo -e "  ${GREEN}Created and checked out new branch: $MAIN_BRANCH${NC}"
-                    fi
+                    # If it doesn't exist remotely, create it locally.
+                    git checkout -b "$main_branch" --quiet
+                    echo -e "  ${GREEN}Created and checked out new local branch '$main_branch' in $path${NC}"
                 fi
-                
-                # Return to main directory
-                cd "$CURRENT_DIR" || exit
+            )
+            local status=$?
+            if [ $status -ne 0 ]; then
+                echo -e "${RED}Failed to set up branch in $path${NC}" >&2
+                return $status
+            fi
+            
+            return 0
+        }
+        
+        export -f clone_and_setup_submodule
+        export BLUE GREEN YELLOW RED NC
+
+        pids=()
+        for path in $SUBMODULE_PATHS; do
+            clone_and_setup_submodule "$path" "$MAIN_BRANCH" &
+            pids+=($!)
+        done
+        
+        # Wait for all background jobs and check for failures
+        all_success=true
+        for pid in "${pids[@]}"; do
+            if ! wait "$pid"; then
+                echo -e "${RED}A submodule setup process failed (PID: $pid).${NC}" >&2
+                all_success=false
             fi
         done
         
-        echo -e "${GREEN}All submodules initialized successfully!${NC}"
+        if ! $all_success; then
+            echo -e "${RED}One or more submodules failed to initialize. Please check the output above. Aborting.${NC}"
+            exit 1
+        fi
+        
+        echo -e "${GREEN}All submodules cloned and branches configured successfully.${NC}"
+
+        # Sequentially update the gitlinks in the main repository's index.
+        # This records the submodule commits in the parent repository.
+        echo -e "${BLUE}Updating submodule pointers in the main repository...${NC}"
+        for path in $SUBMODULE_PATHS; do
+            if [ -d "$path/.git" ]; then
+                echo -e "  Updating index for ${YELLOW}$path${NC}"
+                # `git add` is the modern, correct way to update a submodule's commit pointer.
+                git add "$path"
+            else
+                echo -e "${YELLOW}Warning: '$path' is not a git repository. Skipping index update.${NC}"
+            fi
+        done
+        
+        echo -e "${GREEN}Workspace initialization completed successfully!${NC}"
         ;;
         
     commit)
