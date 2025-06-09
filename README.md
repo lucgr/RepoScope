@@ -30,10 +30,10 @@ MultiRepoHub solves the challenge of managing code changes across multiple repos
    - The task name is automatically extracted from the branch name
    - Select the repositories to include in the workspace
    - Click "Create Virtual Workspace"
-   - Once processing is complete, a ZIP file containing the virtual workspace will be automatically downloaded by your browser. Extract this ZIP to get your workspace.
+   - Once processing is complete, a command is generated that can be copied into a terminal to download.
 
 2. **Using the Workspace**:
-   - After extracting the ZIP, navigate to the workspace directory in your IDE of choice
+   - After running the generated command, navigate to the workspace directory in your IDE of choice
    - Create a `.env` file in this directory with the content `GITLAB_TOKEN=<your_personal_access_token>`. The scripts will use this token for GitLab API operations.
    - Use the provided multi-repo scripts to manage operations across all repositories:
 
@@ -63,7 +63,7 @@ MultiRepoHub solves the challenge of managing code changes across multiple repos
 
 3. **Workspace History**:
    - Previously created workspaces are listed in the Workspace History section.
-   - You can re-download the ZIP for a previously defined workspace configuration by clicking its entry (note: this re-creates and re-zips the workspace on the backend).
+   - You can re-generate the download command for a previously defined workspace configuration by clicking its entry.
 
 
 ## Backend Setup
