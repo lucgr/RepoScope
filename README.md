@@ -34,42 +34,34 @@ MultiRepoHub solves the challenge of managing code changes across multiple repos
 
 2. **Using the Workspace**:
    - After extracting the ZIP, navigate to the workspace directory in your IDE of choice
+   - Create a `.env` file in this directory with the content `GITLAB_TOKEN=<your_personal_access_token>`. The scripts will use this token for GitLab API operations.
    - Use the provided multi-repo scripts to manage operations across all repositories:
 
 ```bash
 # Initialize all submodules in the workspace
-./multi-repo init
+./multi-repo.sh init
 
 # Commit changes across all repositories
-./multi-repo commit "Your commit message"
+./multi-repo.sh commit "Your commit message"
 
 # Push changes to all repositories
-./multi-repo push
+./multi-repo.sh push
 
 # Pull latest changes for all repositories
-./multi-repo pull
+./multi-repo.sh pull
 
 # Check status of all repositories
-./multi-repo status
+./multi-repo.sh status
 
 # Create or checkout branches across all repositories
-./multi-repo branch <branch-name>
-./multi-repo checkout <branch-name>
+./multi-repo.sh branch <branch-name>
+./multi-repo.sh checkout <branch-name>
 
-# Create pull requests for all repositories with changes
-./multi-repo pr "title" -d "description" -b "target-branch"
+# Create GitLab Merge Requests for all repositories with changes
+./multi-repo.sh pr "title" -d "description" -b "target-branch"
 ```
 
-3. **Creating PRs Across Repositories**:
-   - The `multi-repo pr` command streamlines the process of creating consistent PRs:
-     - Prompts for a commit message (also used as PR description)
-     - Asks for a target branch (defaults to main)
-     - Offers to use a global branch name or keep individual branch names
-     - Detects repository type (GitLab/GitHub) and formats PRs accordingly
-     - Commits and pushes changes in all submodules
-     - Creates pull requests for each repository with changes
-
-4. **Workspace History**:
+3. **Workspace History**:
    - Previously created workspaces are listed in the Workspace History section.
    - You can re-download the ZIP for a previously defined workspace configuration by clicking its entry (note: this re-creates and re-zips the workspace on the backend).
 
@@ -97,9 +89,6 @@ docker run -it -p 8000:8000 $(docker build -q .)
 # Or alternatively, build and run separately
 docker build -t multirepo-backend .
 docker run -it -p 8000:8000 multirepo-backend
-
-# Run in background (detached mode)
-docker run -d -p 8000:8000 $(docker build -q .)
 ```
 
 Make sure your extension's Backend URL setting points to `http://localhost:8000`.
@@ -118,8 +107,8 @@ This extension uses:
 
 1. **PR Unification Logic**:
    - Extracts task identifiers from branch names using regex patterns
-   - Groups PRs by task name across repositories
-   - Calculates consolidated status and statistics for each task
+   - Groups PRs by task name across repositories (branch names also supported)
+   - Calculates consolidated status and basic statistics for each task
    - Uses the PAT from the extension for all GitLab API interactions.
 
 2. **Virtual Workspace Creation**:

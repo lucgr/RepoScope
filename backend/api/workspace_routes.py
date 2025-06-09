@@ -161,15 +161,16 @@ This workspace uses the multi-repo.sh script to manage multiple repositories.
 ./multi-repo.sh push
 
 # Create a PR in all repositories (GitLab only)
-# Requires GITLAB_TOKEN environment variable to be set.
+# This requires a .env file in the workspace root with `GITLAB_TOKEN=<your_token>`.
 ./multi-repo.sh pr "PR title" -d "PR description" -b "target-branch"
 ```
 
 ### Notes
 
-- All repositories will be on the `{branch_name}` branch
-- The multi-repo.sh script helps coordinate operations across all repositories
-- Each repository maintains its own git history and can be worked with independently if needed
+- All repositories will be on the `{branch_name}` branch.
+- The multi-repo.sh script helps coordinate operations across all repositories.
+- Each repository maintains its own git history and can be worked with independently if needed.
+- To create Merge Requests, you must create a `.env` file in the workspace root containing `GITLAB_TOKEN=<your_personal_access_token>`.
 
 EOF
 

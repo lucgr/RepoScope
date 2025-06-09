@@ -3,7 +3,7 @@
 # multi-repo.sh - A wrapper for managing multiple repositories in a virtual workspace
 # This script provides easy command aliases and extensibility for operations across repos
 
-# Source .env file if it exists to load environment variables like GITLAB_PAT
+# Source .env file if it exists to load environment variables like GITLAB_TOKEN
 if [ -f ".env" ]; then
     echo -e "${BLUE}Sourcing environment variables from .env file...${NC}"
     set -a # Automatically export all variables subsequently set or modified
