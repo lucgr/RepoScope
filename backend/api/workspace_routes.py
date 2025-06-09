@@ -160,8 +160,9 @@ This workspace uses the multi-repo.sh script to manage multiple repositories.
 # Push changes in all repositories
 ./multi-repo.sh push
 
-# Create a PR in all repositories
-./multi-repo.sh pr "PR title"
+# Create a PR in all repositories (GitLab only)
+# Requires GITLAB_TOKEN environment variable to be set.
+./multi-repo.sh pr "PR title" -d "PR description" -b "target-branch"
 ```
 
 ### Notes

@@ -57,7 +57,7 @@ MultiRepoHub solves the challenge of managing code changes across multiple repos
 ./multi-repo checkout <branch-name>
 
 # Create pull requests for all repositories with changes
-./multi-repo pr "Your PR title"
+./multi-repo pr "title" -d "description" -b "target-branch"
 ```
 
 3. **Creating PRs Across Repositories**:
