@@ -115,8 +115,7 @@ This extension uses:
    - Creates a parent Git repository structure locally on the backend server.
    - Adds each selected repository as a Git submodule, using the PAT from the extension for private GitLab repositories.
    - Generates helper scripts for multi-repository operations.
-   - Packages the resulting workspace into a ZIP file for download.
-   - Cleans the PAT from `.gitmodules` before zipping to avoid exposing it in the downloaded archive.
+   - Generates a curl command to download the workspace from your terminal (similarily to git clone) through the backend.
 
 3. **Content Script Injection**:
    - Detects GitLab merge request pages
