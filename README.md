@@ -1,10 +1,10 @@
-# MultiRepoHub: Unified PR Viewer Extension
+# MultiRepoHub: Unified PR Viewer and Virtual Monorepo Workspace Creator Extension
 
-A Chrome extension for viewing and managing related Pull Requests across multiple GitLab repositories, streamlining development workflows for multi-repository architecture systems.
+A Chrome extension for viewing and managing related Pull Requests across multiple GitLab repositories, and streamlining development workflows for multi-repository architecture systems. 
 
 ## Overview
 
-MultiRepoHub solves the challenge of managing code changes across multiple repositories by providing a unified interface for tracking, approving, and monitoring related Pull Requests. It integrates directly into GitLab's UI and provides powerful virtual workspace capabilities for multi-repository development.
+MultiRepoHub solves the challenge of managing code changes across multiple repositories by providing a unified interface for tracking, approving, and monitoring related Pull Requests and creating workspaces to simulate the development environment of a monorepo. It integrates directly into GitLab's UI and provides virtual workspace capabilities for multi-repository development.
 
 ## Detailed Usage Guide
 
