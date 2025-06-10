@@ -11,8 +11,8 @@ function filterRepos(searchTerm) {
     return allRepos.filter(repo => repo.toLowerCase().includes(lower));
 }
 
-async function userHasAccessToRepo(owner, repo, token) {
-    const urlEncodedPath = encodeURIComponent(owner + "/" + repo);
+async function userHasAccessToRepo(fullPath, token) {
+    const urlEncodedPath = encodeURIComponent(fullPath);
     const apiUrl = `https://gitlab.com/api/v4/projects/${urlEncodedPath}`;
     try {
         const resp = await fetch(apiUrl, {
@@ -44,14 +44,13 @@ function addRepository() {
             alert("Could not parse repository owner and name from URL");
             return;
         }
-        const [owner, repo] = newRepoKey.split("/");
         const token = data.gitlabToken;
         if (!token) {
             alert("No GitLab token found. Please save your token first.");
             return;
         }
         // Check access before adding
-        const hasAccess = await userHasAccessToRepo(owner, repo, token);
+        const hasAccess = await userHasAccessToRepo(newRepoKey, token);
         if (!hasAccess) {
             alert("You do not have access to this repository with your current GitLab token.");
             return;
@@ -244,9 +243,8 @@ function extractRepoOwnerAndName(url) {
     let clean = url.trim().replace(/^https?:\/\//, "").replace(/\/$/, "").replace(/\.git$/, "");
     const parts = clean.split("/");
     if (parts.length < 3) return null; // e.g. gitlab.com/owner/repo
-    const owner = parts[1].toLowerCase();
-    const repo = parts[2].toLowerCase();
-    return owner + "/" + repo;
+    const path = parts.slice(1).join("/");
+    return path.toLowerCase();
 }
 
 // Inject Material Icons font if not already present
