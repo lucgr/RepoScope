@@ -753,8 +753,10 @@ case "$COMMAND" in
                     return 1
                 fi
 
-                if [[ "$remote_url" =~ gitlab.com[/:]([^/]+/[^/.]+) ]]; then
+                if [[ "$remote_url" =~ gitlab.com[/:](.*)(\.git)?$ ]]; then
                     local project_path=${BASH_REMATCH[1]}
+                    # Remove .git suffix if present
+                    project_path=${project_path%.git}
                     local api_url="https://gitlab.com/api/v4/projects/$(echo "$project_path" | sed 's#/#%2F#g')/merge_requests"
                     local escaped_pr_desc
                     escaped_pr_desc=$(json_escape "$PR_DESCRIPTION")
@@ -852,8 +854,10 @@ case "$COMMAND" in
                     return 0
                 fi
 
-                if [[ "$remote_url_entry" =~ gitlab.com[/:]([^/]+/[^/.]+) ]]; then
+                if [[ "$remote_url_entry" =~ gitlab.com[/:](.*)(\.git)?$ ]]; then
                     local project_path=${BASH_REMATCH[1]}
+                    # Remove .git suffix if present
+                    project_path=${project_path%.git}
                     local mr_iid
                     mr_iid=$(echo "$current_pr_url" | grep -oE '/merge_requests/[0-9]+' | grep -oE '[0-9]+')
                     local api_url="https://gitlab.com/api/v4/projects/$(echo "$project_path" | sed 's#/#%2F#g')/merge_requests/$mr_iid"
